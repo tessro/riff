@@ -274,3 +274,45 @@ func (c *Client) PlayURI(ctx context.Context, device *Device, uri, metadata stri
 	}
 	return c.Play(ctx, device)
 }
+
+// ClearQueue removes all items from the playback queue.
+func (c *Client) ClearQueue(ctx context.Context, device *Device) error {
+	args := map[string]string{"InstanceID": "0"}
+	_, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "RemoveAllTracksFromQueue", args)
+	return err
+}
+
+// PlayFromQueue starts playback from the queue.
+func (c *Client) PlayFromQueue(ctx context.Context, device *Device) error {
+	// Get the device's queue URI
+	queueURI := "x-rincon-queue:" + device.UUID + "#0"
+	args := map[string]string{
+		"InstanceID":         "0",
+		"CurrentURI":         queueURI,
+		"CurrentURIMetaData": "",
+	}
+	if _, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "SetAVTransportURI", args); err != nil {
+		return fmt.Errorf("set queue URI: %w", err)
+	}
+	return c.Play(ctx, device)
+}
+
+// MusicService represents a configured music service on the Sonos.
+type MusicService struct {
+	ID         string
+	Name       string
+	SerialNum  string
+}
+
+// GetMusicServices retrieves configured music services from the Sonos.
+func (c *Client) GetMusicServices(ctx context.Context, device *Device) ([]MusicService, error) {
+	_, err := c.soap.Call(ctx, device.IP, device.Port,
+		"/MusicServices/Control",
+		"urn:schemas-upnp-org:service:MusicServices:1",
+		"ListAvailableServices", nil)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Parse the response to extract Spotify service info
+	return nil, nil
+}

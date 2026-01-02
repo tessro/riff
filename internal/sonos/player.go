@@ -98,20 +98,73 @@ func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
 
 // PlayURI plays a specific URI on the device.
 func (p *Player) PlayURI(ctx context.Context, uri string) error {
-	sonosURI := ConvertSpotifyURI(uri)
+	sonosURI, _ := ConvertSpotifyURIWithMetadata(uri)
+
+	// For Spotify tracks, try direct SetAVTransportURI first
+	if strings.HasPrefix(uri, "spotify:track:") {
+		return p.client.PlayURI(ctx, p.device, sonosURI, "")
+	}
+
+	// For containers, use queue approach
+	if strings.HasPrefix(uri, "spotify:") {
+		// Clear queue errors are non-fatal
+		_ = p.client.ClearQueue(ctx, p.device)
+		if err := p.client.AddURIToQueue(ctx, p.device, sonosURI, ""); err != nil {
+			return fmt.Errorf("add to queue: %w", err)
+		}
+		return p.client.PlayFromQueue(ctx, p.device)
+	}
+
+	// Non-Spotify URIs
 	return p.client.PlayURI(ctx, p.device, sonosURI, "")
 }
 
-// ConvertSpotifyURI converts a Spotify URI to Sonos format.
-// Spotify URI: spotify:track:4iV5W9uYEdYUVa79Axb7Rh
-// Sonos URI: x-sonos-spotify:spotify:track:4iV5W9uYEdYUVa79Axb7Rh?...
-func ConvertSpotifyURI(uri string) string {
+// isContainerURI returns true if the URI is a container (album, playlist, artist).
+func isContainerURI(uri string) bool {
+	return strings.HasPrefix(uri, "spotify:album:") ||
+		strings.HasPrefix(uri, "spotify:playlist:") ||
+		strings.HasPrefix(uri, "spotify:artist:")
+}
+
+// ConvertSpotifyURIWithMetadata converts a Spotify URI to Sonos format with DIDL-Lite metadata.
+func ConvertSpotifyURIWithMetadata(uri string) (sonosURI, metadata string) {
 	if !strings.HasPrefix(uri, "spotify:") {
-		return uri
+		return uri, ""
 	}
-	// Sonos expects the Spotify URI URL-encoded within x-sonos-spotify scheme
-	encoded := strings.ReplaceAll(uri, ":", "%3a")
-	return "x-sonos-spotify:" + encoded + "?sid=9&flags=8224&sn=1"
+
+	// Sonos uses the spotify URI directly (not URL-encoded) for most operations
+	// sid=12 is Spotify's service ID on Sonos
+	suffix := "?sid=12&flags=8224&sn=1"
+
+	// Different URI schemes for different content types
+	switch {
+	case strings.HasPrefix(uri, "spotify:track:"):
+		sonosURI = "x-sonos-spotify:" + uri + suffix
+		metadata = ""
+	case strings.HasPrefix(uri, "spotify:album:"):
+		sonosURI = "x-rincon-cpcontainer:1004206c" + uri + suffix
+		metadata = ""
+	case strings.HasPrefix(uri, "spotify:playlist:"):
+		sonosURI = "x-rincon-cpcontainer:1006206c" + uri + suffix
+		metadata = ""
+	case strings.HasPrefix(uri, "spotify:artist:"):
+		sonosURI = "x-rincon-cpcontainer:1006206c" + uri + suffix
+		metadata = ""
+	default:
+		sonosURI = "x-sonos-spotify:" + uri + suffix
+		metadata = ""
+	}
+	return
+}
+
+// buildTrackMetadata builds DIDL-Lite metadata for a track.
+func buildTrackMetadata(uri string) string {
+	return fmt.Sprintf(`<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item id="00032020%s" restricted="true"><upnp:class>object.item.audioItem.musicTrack</upnp:class><res protocolInfo="sonos.com-spotify:*:audio/x-spotify:*">%s</res></item></DIDL-Lite>`, uri, uri)
+}
+
+// buildContainerMetadata builds DIDL-Lite metadata for a container.
+func buildContainerMetadata(uri, upnpClass string) string {
+	return fmt.Sprintf(`<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item id="%s" restricted="true"><upnp:class>%s</upnp:class></item></DIDL-Lite>`, uri, upnpClass)
 }
 
 // coreDevice converts the Sonos device to a core.Device.

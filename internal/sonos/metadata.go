@@ -3,6 +3,7 @@ package sonos
 import (
 	"encoding/xml"
 	"html"
+	"regexp"
 	"strings"
 
 	"github.com/tessro/riff/internal/core"
@@ -10,18 +11,21 @@ import (
 
 // DIDLLite represents DIDL-Lite metadata format used by UPnP.
 type DIDLLite struct {
-	XMLName xml.Name   `xml:"DIDL-Lite"`
-	Items   []DIDLItem `xml:"item"`
+	XMLName xml.Name   `xml:"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/ DIDL-Lite"`
+	Items   []DIDLItem `xml:"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/ item"`
 }
 
 // DIDLItem represents a single item in DIDL-Lite metadata.
 type DIDLItem struct {
-	Title       string `xml:"title"`
-	Creator     string `xml:"creator"`
-	Album       string `xml:"album"`
-	AlbumArtURI string `xml:"albumArtURI"`
-	Class       string `xml:"class"`
-	Res         string `xml:"res"`
+	// Dublin Core namespace elements
+	Title   string `xml:"http://purl.org/dc/elements/1.1/ title"`
+	Creator string `xml:"http://purl.org/dc/elements/1.1/ creator"`
+	// UPnP namespace elements
+	Album       string `xml:"urn:schemas-upnp-org:metadata-1-0/upnp/ album"`
+	AlbumArtURI string `xml:"urn:schemas-upnp-org:metadata-1-0/upnp/ albumArtURI"`
+	Class       string `xml:"urn:schemas-upnp-org:metadata-1-0/upnp/ class"`
+	// Default namespace
+	Res string `xml:"res"`
 }
 
 // parseTrackMetadata parses Sonos track metadata into a core.Track.
@@ -33,26 +37,50 @@ func parseTrackMetadata(metadata, uri string) *core.Track {
 	// Unescape HTML entities
 	metadata = html.UnescapeString(metadata)
 
+	// Try namespace-aware parsing first
 	var didl DIDLLite
-	if err := xml.Unmarshal([]byte(metadata), &didl); err != nil {
-		return nil
+	if err := xml.Unmarshal([]byte(metadata), &didl); err == nil && len(didl.Items) > 0 {
+		item := didl.Items[0]
+		if item.Title != "" {
+			return &core.Track{
+				URI:     uri,
+				Title:   item.Title,
+				Artist:  item.Creator,
+				Artists: splitArtists(item.Creator),
+				Album:   item.Album,
+				Source:  detectSource(uri),
+			}
+		}
 	}
 
-	if len(didl.Items) == 0 {
+	// Fallback: extract elements using regex (handles any namespace prefix)
+	title := extractXMLElement(metadata, "title")
+	creator := extractXMLElement(metadata, "creator")
+	album := extractXMLElement(metadata, "album")
+
+	if title == "" {
 		return nil
 	}
-
-	item := didl.Items[0]
-	source := detectSource(uri)
 
 	return &core.Track{
 		URI:     uri,
-		Title:   item.Title,
-		Artist:  item.Creator,
-		Artists: splitArtists(item.Creator),
-		Album:   item.Album,
-		Source:  source,
+		Title:   title,
+		Artist:  creator,
+		Artists: splitArtists(creator),
+		Album:   album,
+		Source:  detectSource(uri),
 	}
+}
+
+// extractXMLElement extracts content from an XML element, ignoring namespace prefixes.
+func extractXMLElement(xml, localName string) string {
+	// Match <prefix:localName>content</prefix:localName> or <localName>content</localName>
+	re := regexp.MustCompile(`<(?:\w+:)?` + localName + `[^>]*>([^<]*)</(?:\w+:)?` + localName + `>`)
+	matches := re.FindStringSubmatch(xml)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
 }
 
 // detectSource determines the source platform from a track URI.

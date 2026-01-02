@@ -108,13 +108,18 @@ func parseZoneGroupState(xmlData string) (*ZoneGroupState, error) {
 			dev := &Device{
 				UUID: m.UUID,
 				Name: m.ZoneName,
+				Port: 1400, // Default Sonos port
 			}
-			// Extract IP from location
+			// Extract IP and port from location (e.g., http://192.168.1.131:1400/xml/...)
 			if m.Location != "" {
 				parts := strings.Split(m.Location, "//")
 				if len(parts) > 1 {
 					hostPort := strings.Split(parts[1], "/")[0]
-					dev.IP = strings.Split(hostPort, ":")[0]
+					hostParts := strings.Split(hostPort, ":")
+					dev.IP = hostParts[0]
+					if len(hostParts) > 1 {
+						fmt.Sscanf(hostParts[1], "%d", &dev.Port)
+					}
 				}
 			}
 

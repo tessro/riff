@@ -148,7 +148,14 @@ func getSonosStatus(ctx context.Context) ([]*statusResult, error) {
 	}
 
 	if len(devices) == 0 {
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "Sonos: no devices discovered\n")
+		}
 		return nil, nil
+	}
+
+	if Verbose() {
+		fmt.Fprintf(os.Stderr, "Sonos: found %d devices\n", len(devices))
 	}
 
 	// Get zone groups to find coordinators (only coordinators have playback state)
@@ -157,10 +164,18 @@ func getSonosStatus(ctx context.Context) ([]*statusResult, error) {
 		return nil, err
 	}
 
+	if Verbose() {
+		fmt.Fprintf(os.Stderr, "Sonos: found %d groups\n", len(groups))
+	}
+
 	var results []*statusResult
 	for _, g := range groups {
 		if g.Coordinator == nil {
 			continue
+		}
+
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "Sonos: checking group %s (coordinator: %s)\n", g.Name, g.Coordinator.Name)
 		}
 
 		// Get playback state from coordinator
@@ -171,6 +186,10 @@ func getSonosStatus(ctx context.Context) ([]*statusResult, error) {
 				fmt.Fprintf(os.Stderr, "Sonos %s error: %v\n", g.Name, err)
 			}
 			continue
+		}
+
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "Sonos %s: isPlaying=%v, track=%v\n", g.Name, state.IsPlaying, state.Track != nil)
 		}
 
 		// Only include if playing or has a track

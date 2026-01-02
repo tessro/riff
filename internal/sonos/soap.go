@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -92,7 +93,12 @@ func (c *SOAPClient) buildSOAPBody(service, action string, args map[string]strin
 	buf.WriteString(fmt.Sprintf(`<u:%s xmlns:u="%s">`, action, service))
 
 	for k, v := range args {
-		buf.WriteString(fmt.Sprintf("<%s>%s</%s>", k, xmlEscape(v), k))
+		// Metadata fields contain XML that should not be escaped
+		if strings.HasSuffix(k, "MetaData") || strings.HasSuffix(k, "Metadata") {
+			buf.WriteString(fmt.Sprintf("<%s>%s</%s>", k, v, k))
+		} else {
+			buf.WriteString(fmt.Sprintf("<%s>%s</%s>", k, xmlEscape(v), k))
+		}
 	}
 
 	buf.WriteString(fmt.Sprintf(`</u:%s>`, action))
