@@ -12,7 +12,7 @@ const (
 	SpotifyTokenURL = "https://accounts.spotify.com/api/token"
 
 	// DefaultRedirectURI is the default callback URI for the local server.
-	DefaultRedirectURI = "http://localhost:8888/callback"
+	DefaultRedirectURI = "http://127.0.0.1:8888/callback"
 )
 
 // DefaultScopes are the Spotify scopes required for riff functionality.

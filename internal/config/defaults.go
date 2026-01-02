@@ -4,7 +4,7 @@ package config
 func Default() *Config {
 	return &Config{
 		Spotify: SpotifyConfig{
-			RedirectURI: "http://localhost:8888/callback",
+			RedirectURI: "http://127.0.0.1:8888/callback",
 		},
 		Sonos: SonosConfig{
 			DiscoveryTimeout: 5,
