@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tess/riff/internal/sonos"
 )
 
 var groupTo string
@@ -53,48 +56,186 @@ func init() {
 }
 
 func runGroupList(cmd *cobra.Command, args []string) error {
-	// TODO: Implement when Phase 3 (Sonos) is complete
-	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"groups":  []interface{}{},
-			"message": "Sonos integration not yet implemented",
-		})
-	} else {
-		fmt.Println("Sonos group management requires Phase 3 implementation.")
-		fmt.Println("This feature will be available after Sonos integration is complete.")
+	ctx := context.Background()
+
+	client := sonos.NewClient()
+
+	// Discover devices
+	devices, err := client.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("discovery failed: %w", err)
 	}
+
+	if len(devices) == 0 {
+		if JSONOutput() {
+			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				"groups": []interface{}{},
+			})
+		} else {
+			fmt.Println("No Sonos devices found")
+		}
+		return nil
+	}
+
+	// Get zone groups from first device
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		return fmt.Errorf("failed to get groups: %w", err)
+	}
+
+	if JSONOutput() {
+		return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			"groups": groups,
+		})
+	}
+
+	if len(groups) == 0 {
+		fmt.Println("No groups found")
+		return nil
+	}
+
+	for _, g := range groups {
+		if g.Coordinator != nil {
+			fmt.Printf("📻 %s", g.Name)
+			if len(g.Members) > 1 {
+				fmt.Printf(" (group of %d)", len(g.Members))
+			}
+			fmt.Println()
+
+			for _, m := range g.Members {
+				if m.UUID == g.Coordinator.UUID {
+					fmt.Printf("   └─ %s [coordinator]\n", m.Name)
+				} else {
+					fmt.Printf("   └─ %s\n", m.Name)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
 func runGroupAdd(cmd *cobra.Command, args []string) error {
-	speaker := args[0]
+	ctx := context.Background()
+	speakerName := args[0]
 
-	// TODO: Implement when Phase 3 (Sonos) is complete
+	client := sonos.NewClient()
+
+	// Discover devices
+	devices, err := client.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("discovery failed: %w", err)
+	}
+
+	if len(devices) == 0 {
+		return fmt.Errorf("no Sonos devices found")
+	}
+
+	// Get zone groups to find devices by name
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		return fmt.Errorf("failed to get groups: %w", err)
+	}
+
+	// Find the speaker to add
+	var speakerDevice *sonos.Device
+	var targetCoordinatorUUID string
+
+	for _, g := range groups {
+		for _, m := range g.Members {
+			if strings.EqualFold(m.Name, speakerName) {
+				speakerDevice = m
+			}
+			if strings.EqualFold(m.Name, groupTo) || strings.EqualFold(g.Name, groupTo) {
+				if g.Coordinator != nil {
+					targetCoordinatorUUID = g.Coordinator.UUID
+				}
+			}
+		}
+	}
+
+	if speakerDevice == nil {
+		return fmt.Errorf("speaker '%s' not found", speakerName)
+	}
+
+	if targetCoordinatorUUID == "" {
+		return fmt.Errorf("target group '%s' not found", groupTo)
+	}
+
+	// Add speaker to group
+	if err := client.AddToGroup(ctx, speakerDevice, targetCoordinatorUUID); err != nil {
+		return fmt.Errorf("failed to add speaker to group: %w", err)
+	}
+
 	if JSONOutput() {
 		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"status":  "not_implemented",
-			"speaker": speaker,
-			"target":  groupTo,
-			"message": "Sonos integration not yet implemented",
+			"status":  "added",
+			"speaker": speakerName,
+			"group":   groupTo,
 		})
 	} else {
-		fmt.Printf("Cannot add '%s' to group '%s': Sonos integration not yet implemented.\n", speaker, groupTo)
+		fmt.Printf("Added '%s' to group '%s'\n", speakerName, groupTo)
 	}
+
 	return nil
 }
 
 func runGroupRemove(cmd *cobra.Command, args []string) error {
-	speaker := args[0]
+	ctx := context.Background()
+	speakerName := args[0]
 
-	// TODO: Implement when Phase 3 (Sonos) is complete
+	client := sonos.NewClient()
+
+	// Discover devices
+	devices, err := client.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("discovery failed: %w", err)
+	}
+
+	if len(devices) == 0 {
+		return fmt.Errorf("no Sonos devices found")
+	}
+
+	// Get zone groups to find device by name
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		return fmt.Errorf("failed to get groups: %w", err)
+	}
+
+	// Find the speaker to remove
+	var speakerDevice *sonos.Device
+	var groupName string
+
+	for _, g := range groups {
+		for _, m := range g.Members {
+			if strings.EqualFold(m.Name, speakerName) {
+				speakerDevice = m
+				groupName = g.Name
+				break
+			}
+		}
+		if speakerDevice != nil {
+			break
+		}
+	}
+
+	if speakerDevice == nil {
+		return fmt.Errorf("speaker '%s' not found", speakerName)
+	}
+
+	// Remove from group (make standalone)
+	if err := client.RemoveFromGroup(ctx, speakerDevice); err != nil {
+		return fmt.Errorf("failed to remove speaker from group: %w", err)
+	}
+
 	if JSONOutput() {
 		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"status":  "not_implemented",
-			"speaker": speaker,
-			"message": "Sonos integration not yet implemented",
+			"status":  "removed",
+			"speaker": speakerName,
 		})
 	} else {
-		fmt.Printf("Cannot remove '%s' from group: Sonos integration not yet implemented.\n", speaker)
+		fmt.Printf("Removed '%s' from group '%s' (now standalone)\n", speakerName, groupName)
 	}
+
 	return nil
 }
