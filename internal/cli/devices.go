@@ -119,7 +119,13 @@ func getSpotifyDevices(ctx context.Context) ([]deviceInfo, error) {
 func getSonosDevices(ctx context.Context) ([]deviceInfo, error) {
 	client := sonos.NewClient()
 
-	devices, err := client.Discover(ctx)
+	var devices []*sonos.Device
+	var err error
+	if devicesRefresh {
+		devices, err = client.DiscoverFresh(ctx)
+	} else {
+		devices, err = client.Discover(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}

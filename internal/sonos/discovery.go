@@ -3,9 +3,12 @@ package sonos
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +18,7 @@ const (
 	ssdpAddr      = "239.255.255.250:1900"
 	sonosURN      = "urn:schemas-upnp-org:device:ZonePlayer:1"
 	defaultTTL    = 5 * time.Minute
+	fileCacheTTL  = 5 * time.Minute
 )
 
 var mSearchRequest = []byte(
@@ -37,10 +41,17 @@ type Device struct {
 	LastSeen time.Time `json:"last_seen"`
 }
 
+// deviceCache is the on-disk cache format.
+type deviceCache struct {
+	CachedAt time.Time  `json:"cached_at"`
+	Devices  []*Device  `json:"devices"`
+}
+
 // Discovery handles Sonos device discovery via SSDP.
 type Discovery struct {
-	timeout time.Duration
-	ttl     time.Duration
+	timeout  time.Duration
+	ttl      time.Duration
+	cacheDir string
 
 	mu      sync.RWMutex
 	devices map[string]*Device // keyed by UUID
@@ -52,12 +63,74 @@ func NewDiscovery(timeout time.Duration) *Discovery {
 	if timeout == 0 {
 		timeout = 3 * time.Second
 	}
-	return &Discovery{
-		timeout: timeout,
-		ttl:     defaultTTL,
-		devices: make(map[string]*Device),
-		aliases: make(map[string]string),
+
+	// Determine cache directory
+	cacheDir := os.Getenv("XDG_CACHE_HOME")
+	if cacheDir == "" {
+		home, _ := os.UserHomeDir()
+		cacheDir = filepath.Join(home, ".cache")
 	}
+	cacheDir = filepath.Join(cacheDir, "riff")
+
+	return &Discovery{
+		timeout:  timeout,
+		ttl:      defaultTTL,
+		cacheDir: cacheDir,
+		devices:  make(map[string]*Device),
+		aliases:  make(map[string]string),
+	}
+}
+
+// cacheFilePath returns the path to the device cache file.
+func (d *Discovery) cacheFilePath() string {
+	return filepath.Join(d.cacheDir, "sonos-devices.json")
+}
+
+// loadCache reads devices from the file cache.
+func (d *Discovery) loadCache() ([]*Device, bool) {
+	data, err := os.ReadFile(d.cacheFilePath())
+	if err != nil {
+		return nil, false
+	}
+
+	var cache deviceCache
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return nil, false
+	}
+
+	// Check if cache is still valid
+	if time.Since(cache.CachedAt) > fileCacheTTL {
+		return nil, false
+	}
+
+	// Populate in-memory cache
+	d.mu.Lock()
+	for _, dev := range cache.Devices {
+		d.devices[dev.UUID] = dev
+	}
+	d.mu.Unlock()
+
+	return cache.Devices, true
+}
+
+// saveCache writes devices to the file cache.
+func (d *Discovery) saveCache(devices []*Device) {
+	cache := deviceCache{
+		CachedAt: time.Now(),
+		Devices:  devices,
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return
+	}
+
+	// Ensure cache directory exists
+	if err := os.MkdirAll(d.cacheDir, 0755); err != nil {
+		return
+	}
+
+	_ = os.WriteFile(d.cacheFilePath(), data, 0644)
 }
 
 // SetAlias maps an alias name to a device UUID or IP.
@@ -68,7 +141,23 @@ func (d *Discovery) SetAlias(alias, target string) {
 }
 
 // Discover performs SSDP discovery and returns all found Sonos devices.
+// Results are cached to ~/.cache/riff/sonos-devices.json for faster subsequent lookups.
 func (d *Discovery) Discover(ctx context.Context) ([]*Device, error) {
+	// Check file cache first
+	if devices, ok := d.loadCache(); ok {
+		return devices, nil
+	}
+
+	return d.discoverSSDP(ctx)
+}
+
+// DiscoverFresh bypasses the cache and performs fresh SSDP discovery.
+func (d *Discovery) DiscoverFresh(ctx context.Context) ([]*Device, error) {
+	return d.discoverSSDP(ctx)
+}
+
+// discoverSSDP performs the actual SSDP discovery.
+func (d *Discovery) discoverSSDP(ctx context.Context) ([]*Device, error) {
 	addr, err := net.ResolveUDPAddr("udp4", ssdpAddr)
 	if err != nil {
 		return nil, fmt.Errorf("resolve ssdp addr: %w", err)
@@ -78,11 +167,11 @@ func (d *Discovery) Discover(ctx context.Context) ([]*Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen udp: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set read deadline
 	deadline := time.Now().Add(d.timeout)
-	conn.SetReadDeadline(deadline)
+	_ = conn.SetReadDeadline(deadline)
 
 	// Send M-SEARCH
 	if _, err := conn.WriteToUDP(mSearchRequest, addr); err != nil {
@@ -97,6 +186,7 @@ func (d *Discovery) Discover(ctx context.Context) ([]*Device, error) {
 	for {
 		select {
 		case <-ctx.Done():
+			d.saveCache(devices)
 			return devices, ctx.Err()
 		default:
 		}
@@ -122,11 +212,14 @@ func (d *Discovery) Discover(ctx context.Context) ([]*Device, error) {
 		device.LastSeen = time.Now()
 		devices = append(devices, device)
 
-		// Cache the device
+		// Cache the device in memory
 		d.mu.Lock()
 		d.devices[device.UUID] = device
 		d.mu.Unlock()
 	}
+
+	// Save to file cache
+	d.saveCache(devices)
 
 	return devices, nil
 }
@@ -184,7 +277,7 @@ func parseResponse(data []byte, addr *net.UDPAddr) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Verify it's a Sonos device
 	st := resp.Header.Get("ST")
@@ -209,7 +302,7 @@ func parseResponse(data []byte, addr *net.UDPAddr) (*Device, error) {
 			parts := strings.Split(location, ":")
 			if len(parts) >= 3 {
 				portStr := strings.Split(parts[2], "/")[0]
-				fmt.Sscanf(portStr, "%d", &port)
+				_, _ = fmt.Sscanf(portStr, "%d", &port)
 			}
 		}
 	}

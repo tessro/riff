@@ -49,8 +49,14 @@ func NewClient() *Client {
 }
 
 // Discover finds all Sonos devices on the network.
+// Uses cached results from ~/.cache/riff/sonos-devices.json if available.
 func (c *Client) Discover(ctx context.Context) ([]*Device, error) {
 	return c.discovery.Discover(ctx)
+}
+
+// DiscoverFresh bypasses the cache and performs fresh SSDP discovery.
+func (c *Client) DiscoverFresh(ctx context.Context) ([]*Device, error) {
+	return c.discovery.DiscoverFresh(ctx)
 }
 
 // GetDevice returns a device by identifier (UUID, name, IP, or alias).
