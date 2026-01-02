@@ -99,7 +99,7 @@ func runPause(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "paused"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "paused"})
 	} else {
 		fmt.Println("⏸ Paused")
 	}
@@ -120,7 +120,7 @@ func runResume(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "playing"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "playing"})
 	} else {
 		fmt.Println("▶ Resumed")
 	}
@@ -141,7 +141,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "skipped"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "skipped"})
 	} else {
 		fmt.Println("⏭ Skipped to next track")
 	}
@@ -162,7 +162,7 @@ func runPrev(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "previous"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "previous"})
 	} else {
 		fmt.Println("⏮ Previous track")
 	}
@@ -183,7 +183,7 @@ func runRestart(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "restarted"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "restarted"})
 	} else {
 		fmt.Println("⏪ Restarted track")
 	}
@@ -244,7 +244,7 @@ func runVolume(cmd *cobra.Command, args []string) error {
 	} else {
 		// Just show current volume
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]int{"volume": currentVolume})
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"volume": currentVolume})
 		} else {
 			fmt.Printf("🔊 Volume: %d%%\n", currentVolume)
 		}
@@ -256,7 +256,7 @@ func runVolume(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 			"volume":   targetVolume,
 			"previous": currentVolume,
 		})

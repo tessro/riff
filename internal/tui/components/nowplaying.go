@@ -44,12 +44,12 @@ func (n *NowPlaying) renderTrack(state *core.PlaybackState, width int) string {
 
 	// Status icon and track title
 	icon := styles.StatusIcon(state.IsPlaying)
-	titleStyle := styles.Title.Copy().Width(width - 4)
+	titleStyle := styles.Title.Width(width - 4)
 	title := titleStyle.Render(track.Title)
 
 	// Artist and album - use full width
-	artist := styles.Subtitle.Copy().Width(width - 4).Render(track.Artist)
-	album := styles.Dim.Copy().Width(width - 4).Render(track.Album)
+	artist := styles.Subtitle.Width(width - 4).Render(track.Artist)
+	album := styles.Dim.Width(width - 4).Render(track.Album)
 
 	// Progress bar
 	progressWidth := width - 14 // Account for times on either side

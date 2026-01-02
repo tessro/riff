@@ -145,7 +145,7 @@ func runPlaySonos(ctx context.Context, spotifyClient *client.Client, device *res
 			return fmt.Errorf("failed to play on Sonos: %w", err)
 		}
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"status": "playing",
 				"uri":    playURI,
 				"device": device.Name,
@@ -248,7 +248,7 @@ func searchAndPlaySonos(ctx context.Context, c *client.Client, sonosPlayer *sono
 		if artist != "" {
 			output["artist"] = artist
 		}
-		json.NewEncoder(os.Stdout).Encode(output)
+		_ = json.NewEncoder(os.Stdout).Encode(output)
 	} else {
 		if artist != "" {
 			fmt.Printf("▶ Playing %s: %s by %s on %s (Sonos)\n", searchType, name, artist, deviceName)
@@ -268,7 +268,7 @@ func playWithFallback(ctx context.Context, c *client.Client, p *player.Player, p
 			fmt.Println("▶ Resumed playback")
 		} else if playType == "uri" {
 			if JSONOutput() {
-				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 					"status": "playing",
 					"uri":    uri,
 				})
@@ -336,18 +336,21 @@ func playWithFallback(ctx context.Context, c *client.Client, p *player.Player, p
 		return fmt.Errorf("failed to play on default device: %w", err)
 	}
 
-	if !JSONOutput() {
-		if playType == "resume" {
+	switch playType {
+	case "resume":
+		if !JSONOutput() {
 			fmt.Printf("▶ Resumed playback on %s\n", deviceName)
-		} else if playType == "uri" {
+		}
+	case "uri":
+		if JSONOutput() {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				"status": "playing",
+				"uri":    uri,
+				"device": deviceName,
+			})
+		} else {
 			fmt.Printf("▶ Playing %s on %s\n", uri, deviceName)
 		}
-	} else if playType == "uri" {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"status": "playing",
-			"uri":    uri,
-			"device": deviceName,
-		})
 	}
 
 	return nil
@@ -355,23 +358,6 @@ func playWithFallback(ctx context.Context, c *client.Client, p *player.Player, p
 
 func playByURIInternal(ctx context.Context, p *player.Player, uri string) error {
 	return p.PlayURI(ctx, uri)
-}
-
-func playByURI(ctx context.Context, p *player.Player, uri string) error {
-	if err := p.PlayURI(ctx, uri); err != nil {
-		return fmt.Errorf("failed to play URI: %w", err)
-	}
-
-	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"status": "playing",
-			"uri":    uri,
-		})
-	} else {
-		fmt.Printf("▶ Playing %s\n", uri)
-	}
-
-	return nil
 }
 
 func searchAndPlay(ctx context.Context, c *client.Client, p *player.Player, query string) error {
@@ -498,7 +484,7 @@ func outputPlayResult(itemType, name, artist, uri string) {
 		if artist != "" {
 			output["artist"] = artist
 		}
-		json.NewEncoder(os.Stdout).Encode(output)
+		_ = json.NewEncoder(os.Stdout).Encode(output)
 	} else {
 		if artist != "" {
 			fmt.Printf("▶ Playing %s: %s by %s\n", itemType, name, artist)
@@ -520,7 +506,7 @@ func outputPlayResultWithDevice(itemType, name, artist, uri, device string) {
 		if artist != "" {
 			output["artist"] = artist
 		}
-		json.NewEncoder(os.Stdout).Encode(output)
+		_ = json.NewEncoder(os.Stdout).Encode(output)
 	} else {
 		if artist != "" {
 			fmt.Printf("▶ Playing %s: %s by %s on %s\n", itemType, name, artist, device)

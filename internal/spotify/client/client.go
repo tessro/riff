@@ -210,7 +210,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)
 			c.log("[spotify] read error: %v", err)

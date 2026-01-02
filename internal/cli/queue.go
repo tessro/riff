@@ -89,7 +89,7 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 
 	if queue.IsEmpty() {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"queue":   []interface{}{},
 				"message": "Queue is empty",
 			})
@@ -182,7 +182,7 @@ func runQueueAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 			"status": "added",
 			"uri":    uri,
 			"name":   trackName,

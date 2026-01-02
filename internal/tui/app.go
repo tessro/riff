@@ -70,10 +70,9 @@ type Model struct {
 	historyView *components.History
 
 	// Overlays
-	showHelp   bool
-	showSearch bool
+	showHelp    bool
+	showSearch  bool
 	searchInput string
-	searchResults []components.SearchResult
 
 	// Error handling
 	lastError error
@@ -292,9 +291,9 @@ func (m Model) togglePlayPause() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		if m.state != nil && m.state.IsPlaying {
-			m.app.player.Pause(ctx)
+			_ = m.app.player.Pause(ctx)
 		} else {
-			m.app.player.Play(ctx)
+			_ = m.app.player.Play(ctx)
 		}
 		return nil
 	}
@@ -304,7 +303,7 @@ type refreshAfterActionMsg struct{}
 
 func (m Model) nextTrack() tea.Cmd {
 	return func() tea.Msg {
-		m.app.player.Next(context.Background())
+		_ = m.app.player.Next(context.Background())
 		// Small delay to let Spotify update state
 		time.Sleep(200 * time.Millisecond)
 		return refreshAfterActionMsg{}
@@ -313,7 +312,7 @@ func (m Model) nextTrack() tea.Cmd {
 
 func (m Model) prevTrack() tea.Cmd {
 	return func() tea.Msg {
-		m.app.player.Prev(context.Background())
+		_ = m.app.player.Prev(context.Background())
 		// Small delay to let Spotify update state
 		time.Sleep(200 * time.Millisecond)
 		return refreshAfterActionMsg{}
@@ -327,7 +326,7 @@ func (m Model) volumeUp() tea.Cmd {
 			if newVol > 100 {
 				newVol = 100
 			}
-			m.app.player.Volume(context.Background(), newVol)
+			_ = m.app.player.Volume(context.Background(), newVol)
 		}
 		return nil
 	}
@@ -340,7 +339,7 @@ func (m Model) volumeDown() tea.Cmd {
 			if newVol < 0 {
 				newVol = 0
 			}
-			m.app.player.Volume(context.Background(), newVol)
+			_ = m.app.player.Volume(context.Background(), newVol)
 		}
 		return nil
 	}
@@ -351,7 +350,7 @@ func (m Model) transferToDevice() tea.Cmd {
 		selected := m.devicesView.Selected()
 		if selected >= 0 && selected < len(m.devices) {
 			device := m.devices[selected]
-			m.app.player.TransferPlayback(context.Background(), device.ID, true)
+			_ = m.app.player.TransferPlayback(context.Background(), device.ID, true)
 		}
 		return nil
 	}

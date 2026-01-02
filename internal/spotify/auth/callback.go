@@ -92,7 +92,7 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 	// Respond to the browser
 	if result.Error != "" {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, `<!DOCTYPE html>
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>Authentication Failed</title></head>
 <body>
@@ -105,7 +105,7 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `<!DOCTYPE html>
+	_, _ = fmt.Fprint(w, `<!DOCTYPE html>
 <html>
 <head><title>Authentication Successful</title></head>
 <body>

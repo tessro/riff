@@ -69,7 +69,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	if len(states) == 0 {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"playing": false,
 				"message": "No active playback",
 			})

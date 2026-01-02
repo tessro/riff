@@ -64,7 +64,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start callback server: %w", err)
 	}
 	callbackServer.Start()
-	defer callbackServer.Shutdown(context.Background())
+	defer func() { _ = callbackServer.Shutdown(context.Background()) }()
 
 	// Build auth URL
 	config := auth.NewConfig(cfg.Spotify.ClientID)
@@ -141,7 +141,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 			"email":        user.Email,
 			"product":      user.Product,
 		}
-		json.NewEncoder(os.Stdout).Encode(output)
+		_ = json.NewEncoder(os.Stdout).Encode(output)
 	} else {
 		fmt.Printf("Successfully authenticated as %s (%s)\n", user.DisplayName, user.Email)
 	}
@@ -157,7 +157,7 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 
 	if !storage.Exists() {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "not_authenticated"})
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "not_authenticated"})
 		} else {
 			fmt.Println("Not authenticated with Spotify.")
 		}
@@ -169,7 +169,7 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "logged_out"})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "logged_out"})
 	} else {
 		fmt.Println("Logged out of Spotify.")
 	}
@@ -190,7 +190,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	if token == nil {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"authenticated": false,
 			})
 		} else {
@@ -203,7 +203,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	// Try to get user info
 	if cfg.Spotify.ClientID == "" {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"authenticated": true,
 				"expired":       token.IsExpired(),
 				"expires_at":    token.ExpiresAt,
@@ -232,7 +232,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	user, err := spotifyClient.GetCurrentUser(ctx)
 	if err != nil {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"authenticated": true,
 				"expired":       true,
 				"error":         err.Error(),
@@ -245,7 +245,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 			"authenticated": true,
 			"expired":       false,
 			"user_id":       user.ID,

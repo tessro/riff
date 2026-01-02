@@ -147,12 +147,12 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Write header comment
-	fmt.Fprintln(f, "# Riff Configuration")
-	fmt.Fprintln(f, "# https://github.com/tessro/riff")
-	fmt.Fprintln(f, "")
+	_, _ = fmt.Fprintln(f, "# Riff Configuration")
+	_, _ = fmt.Fprintln(f, "# https://github.com/tessro/riff")
+	_, _ = fmt.Fprintln(f, "")
 
 	// Write config
 	encoder := toml.NewEncoder(f)
@@ -162,7 +162,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{
 			"status": "created",
 			"path":   configPath,
 		})
@@ -237,7 +237,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("value must be an integer for %s", key)
 		}
 		var intVal int
-		fmt.Sscanf(value, "%d", &intVal)
+		_, _ = fmt.Sscanf(value, "%d", &intVal)
 		typedValue = intVal
 	case "defaults.shuffle", "tail.enabled":
 		// Boolean fields
@@ -254,12 +254,12 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Write header comment
-	fmt.Fprintln(f, "# Riff Configuration")
-	fmt.Fprintln(f, "# https://github.com/tessro/riff")
-	fmt.Fprintln(f, "")
+	_, _ = fmt.Fprintln(f, "# Riff Configuration")
+	_, _ = fmt.Fprintln(f, "# https://github.com/tessro/riff")
+	_, _ = fmt.Fprintln(f, "")
 
 	encoder := toml.NewEncoder(f)
 	encoder.Indent = "  "
@@ -268,7 +268,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]string{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{
 			"status": "updated",
 			"key":    key,
 			"value":  value,

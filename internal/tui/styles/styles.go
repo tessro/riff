@@ -72,12 +72,10 @@ var (
 
 // Panel creates a styled panel with optional focus
 func Panel(title string, focused bool) lipgloss.Style {
-	style := BorderStyle.Copy().
-		Padding(0, 1)
+	style := BorderStyle.Padding(0, 1)
 
 	if focused {
-		style = FocusedBorder.Copy().
-			Padding(0, 1)
+		style = FocusedBorder.Padding(0, 1)
 	}
 
 	return style
@@ -85,9 +83,9 @@ func Panel(title string, focused bool) lipgloss.Style {
 
 // PanelTitle creates a styled panel title
 func PanelTitle(title string, focused bool) string {
-	style := Label.Copy()
+	style := Label
 	if focused {
-		style = Highlight.Copy()
+		style = Highlight
 	}
 	return style.Render(" " + title + " ")
 }

@@ -16,7 +16,7 @@ func TestCallbackServer(t *testing.T) {
 	}
 
 	server.Start()
-	defer server.Shutdown(context.Background())
+	defer func() { _ = server.Shutdown(context.Background()) }()
 
 	port := server.Port()
 	if port == 0 {
@@ -32,7 +32,7 @@ func TestCallbackServer(t *testing.T) {
 			t.Errorf("Failed to make callback request: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	// Wait for result
@@ -62,7 +62,7 @@ func TestCallbackServerError(t *testing.T) {
 	}
 
 	server.Start()
-	defer server.Shutdown(context.Background())
+	defer func() { _ = server.Shutdown(context.Background()) }()
 
 	port := server.Port()
 
@@ -75,7 +75,7 @@ func TestCallbackServerError(t *testing.T) {
 			t.Errorf("Failed to make callback request: %v", err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -98,7 +98,7 @@ func TestCallbackServerTimeout(t *testing.T) {
 	}
 
 	server.Start()
-	defer server.Shutdown(context.Background())
+	defer func() { _ = server.Shutdown(context.Background()) }()
 
 	// Create a very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

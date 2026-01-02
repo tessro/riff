@@ -47,7 +47,7 @@ var groupRemoveCmd = &cobra.Command{
 
 func init() {
 	groupAddCmd.Flags().StringVar(&groupTo, "to", "", "Target group coordinator (required)")
-	groupAddCmd.MarkFlagRequired("to")
+	_ = groupAddCmd.MarkFlagRequired("to")
 
 	groupCmd.AddCommand(groupListCmd)
 	groupCmd.AddCommand(groupAddCmd)
@@ -68,7 +68,7 @@ func runGroupList(cmd *cobra.Command, args []string) error {
 
 	if len(devices) == 0 {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 				"groups": []interface{}{},
 			})
 		} else {
@@ -168,7 +168,7 @@ func runGroupAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 			"status":  "added",
 			"speaker": speakerName,
 			"group":   groupTo,
@@ -229,7 +229,7 @@ func runGroupRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	if JSONOutput() {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 			"status":  "removed",
 			"speaker": speakerName,
 		})

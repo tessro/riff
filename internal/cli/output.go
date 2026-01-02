@@ -46,7 +46,7 @@ func NewTable(headers ...string) *Table {
 		headers: headers,
 	}
 	if len(headers) > 0 {
-		t.w.Write([]byte(strings.Join(headers, "\t") + "\n"))
+		_, _ = t.w.Write([]byte(strings.Join(headers, "\t") + "\n"))
 	}
 	return t
 }
@@ -58,19 +58,19 @@ func NewTableWriter(out io.Writer, headers ...string) *Table {
 		headers: headers,
 	}
 	if len(headers) > 0 {
-		t.w.Write([]byte(strings.Join(headers, "\t") + "\n"))
+		_, _ = t.w.Write([]byte(strings.Join(headers, "\t") + "\n"))
 	}
 	return t
 }
 
 // Row adds a row to the table.
 func (t *Table) Row(values ...string) {
-	t.w.Write([]byte(strings.Join(values, "\t") + "\n"))
+	_, _ = t.w.Write([]byte(strings.Join(values, "\t") + "\n"))
 }
 
 // Flush writes the table output.
 func (t *Table) Flush() {
-	t.w.Flush()
+	_ = t.w.Flush()
 }
 
 // Minimal prints minimal output (just the essential value).

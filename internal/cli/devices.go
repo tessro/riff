@@ -55,7 +55,7 @@ func runDevices(cmd *cobra.Command, args []string) error {
 
 	if len(allDevices) == 0 {
 		if JSONOutput() {
-			json.NewEncoder(os.Stdout).Encode([]interface{}{})
+			_ = json.NewEncoder(os.Stdout).Encode([]interface{}{})
 		} else {
 			fmt.Println("No devices found")
 		}
