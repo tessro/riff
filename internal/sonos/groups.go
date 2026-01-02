@@ -148,7 +148,7 @@ func parseZoneGroupState(xmlData string) (*ZoneGroupState, error) {
 					hostParts := strings.Split(hostPort, ":")
 					dev.IP = hostParts[0]
 					if len(hostParts) > 1 {
-						fmt.Sscanf(hostParts[1], "%d", &dev.Port)
+						_, _ = fmt.Sscanf(hostParts[1], "%d", &dev.Port)
 					}
 				}
 			}

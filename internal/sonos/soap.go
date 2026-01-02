@@ -70,7 +70,7 @@ func (c *SOAPClient) Call(ctx context.Context, host string, port int, endpoint, 
 	if err != nil {
 		return nil, fmt.Errorf("soap request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -111,6 +111,6 @@ func (c *SOAPClient) buildSOAPBody(service, action string, args map[string]strin
 // xmlEscape escapes special XML characters.
 func xmlEscape(s string) string {
 	var buf bytes.Buffer
-	xml.EscapeText(&buf, []byte(s))
+	_ = xml.EscapeText(&buf, []byte(s))
 	return buf.String()
 }

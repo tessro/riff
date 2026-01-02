@@ -163,13 +163,6 @@ func (p *Player) PlayURI(ctx context.Context, uri string) error {
 	return p.client.PlayURI(ctx, p.device, sonosURI, "")
 }
 
-// isContainerURI returns true if the URI is a container (album, playlist, artist).
-func isContainerURI(uri string) bool {
-	return strings.HasPrefix(uri, "spotify:album:") ||
-		strings.HasPrefix(uri, "spotify:playlist:") ||
-		strings.HasPrefix(uri, "spotify:artist:")
-}
-
 // ConvertSpotifyURIWithMetadata converts a Spotify URI to Sonos format with DIDL-Lite metadata.
 func ConvertSpotifyURIWithMetadata(uri string) (sonosURI, metadata string) {
 	if !strings.HasPrefix(uri, "spotify:") {
@@ -201,16 +194,6 @@ func ConvertSpotifyURIWithMetadata(uri string) (sonosURI, metadata string) {
 	return
 }
 
-// buildTrackMetadata builds DIDL-Lite metadata for a track.
-func buildTrackMetadata(uri string) string {
-	return fmt.Sprintf(`<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item id="00032020%s" restricted="true"><upnp:class>object.item.audioItem.musicTrack</upnp:class><res protocolInfo="sonos.com-spotify:*:audio/x-spotify:*">%s</res></item></DIDL-Lite>`, uri, uri)
-}
-
-// buildContainerMetadata builds DIDL-Lite metadata for a container.
-func buildContainerMetadata(uri, upnpClass string) string {
-	return fmt.Sprintf(`<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item id="%s" restricted="true"><upnp:class>%s</upnp:class></item></DIDL-Lite>`, uri, upnpClass)
-}
-
 // coreDevice converts the Sonos device to a core.Device.
 func (p *Player) coreDevice() *core.Device {
 	return &core.Device{
@@ -233,7 +216,7 @@ func formatDuration(d time.Duration) string {
 // parseDuration parses a duration string (HH:MM:SS or H:MM:SS).
 func parseDuration(s string) time.Duration {
 	var h, m, sec int
-	fmt.Sscanf(s, "%d:%d:%d", &h, &m, &sec)
+	_, _ = fmt.Sscanf(s, "%d:%d:%d", &h, &m, &sec)
 	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(sec)*time.Second
 }
 
