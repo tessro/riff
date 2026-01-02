@@ -199,6 +199,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.lastError = msg
 		return m, nil
+
+	case refreshAfterActionMsg:
+		return m, tea.Batch(m.fetchState(), m.fetchQueue())
 	}
 
 	return m, nil
@@ -297,17 +300,23 @@ func (m Model) togglePlayPause() tea.Cmd {
 	}
 }
 
+type refreshAfterActionMsg struct{}
+
 func (m Model) nextTrack() tea.Cmd {
 	return func() tea.Msg {
 		m.app.player.Next(context.Background())
-		return nil
+		// Small delay to let Spotify update state
+		time.Sleep(200 * time.Millisecond)
+		return refreshAfterActionMsg{}
 	}
 }
 
 func (m Model) prevTrack() tea.Cmd {
 	return func() tea.Msg {
 		m.app.player.Prev(context.Background())
-		return nil
+		// Small delay to let Spotify update state
+		time.Sleep(200 * time.Millisecond)
+		return refreshAfterActionMsg{}
 	}
 }
 
