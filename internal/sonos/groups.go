@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"time"
 )
 
 // Group represents a Sonos speaker group.
@@ -43,12 +44,35 @@ func (c *Client) GetZoneGroupState(ctx context.Context, device *Device) (*ZoneGr
 }
 
 // ListGroups returns all speaker groups.
+// Results are cached for a short period to reduce network calls.
 func (c *Client) ListGroups(ctx context.Context, device *Device) ([]Group, error) {
+	// Check cache first
+	c.mu.RLock()
+	if c.groupCache != nil && time.Since(c.groupCache.fetchedAt) < zoneGroupCacheTTL {
+		groups := c.groupCache.groups
+		c.mu.RUnlock()
+		return groups, nil
+	}
+	c.mu.RUnlock()
+
 	state, err := c.GetZoneGroupState(ctx, device)
 	if err != nil {
 		return nil, err
 	}
+
+	// Update cache
+	c.mu.Lock()
+	c.groupCache = &groupCache{groups: state.Groups, fetchedAt: time.Now()}
+	c.mu.Unlock()
+
 	return state.Groups, nil
+}
+
+// InvalidateGroupCache clears the zone group cache.
+func (c *Client) InvalidateGroupCache() {
+	c.mu.Lock()
+	c.groupCache = nil
+	c.mu.Unlock()
 }
 
 // AddToGroup adds a device to a group.
@@ -59,6 +83,9 @@ func (c *Client) AddToGroup(ctx context.Context, device *Device, coordinatorUUID
 		"CurrentURIMetaData":    "",
 	}
 	_, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "SetAVTransportURI", args)
+	if err == nil {
+		c.InvalidateGroupCache()
+	}
 	return err
 }
 
@@ -68,6 +95,9 @@ func (c *Client) RemoveFromGroup(ctx context.Context, device *Device) error {
 		"InstanceID": "0",
 	}
 	_, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "BecomeCoordinatorOfStandaloneGroup", args)
+	if err == nil {
+		c.InvalidateGroupCache()
+	}
 	return err
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tessro/riff/internal/core"
@@ -56,32 +57,75 @@ func (p *Player) Volume(ctx context.Context, percent int) error {
 
 // GetState returns the current playback state.
 func (p *Player) GetState(ctx context.Context) (*core.PlaybackState, error) {
-	transport, err := p.client.GetTransportInfo(ctx, p.device)
-	if err != nil {
-		return nil, fmt.Errorf("get transport info: %w", err)
+	// Fetch transport, position, and volume in parallel
+	type result struct {
+		transport *TransportInfo
+		position  *PositionInfo
+		volume    int
+		err       error
 	}
 
-	position, err := p.client.GetPositionInfo(ctx, p.device)
-	if err != nil {
-		return nil, fmt.Errorf("get position info: %w", err)
+	ch := make(chan result, 1)
+	go func() {
+		var r result
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+
+		wg.Add(3)
+
+		go func() {
+			defer wg.Done()
+			t, err := p.client.GetTransportInfo(ctx, p.device)
+			mu.Lock()
+			if err != nil && r.err == nil {
+				r.err = fmt.Errorf("get transport info: %w", err)
+			}
+			r.transport = t
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			pos, err := p.client.GetPositionInfo(ctx, p.device)
+			mu.Lock()
+			if err != nil && r.err == nil {
+				r.err = fmt.Errorf("get position info: %w", err)
+			}
+			r.position = pos
+			mu.Unlock()
+		}()
+
+		go func() {
+			defer wg.Done()
+			v, err := p.client.GetVolume(ctx, p.device)
+			mu.Lock()
+			if err != nil && r.err == nil {
+				r.err = fmt.Errorf("get volume: %w", err)
+			}
+			r.volume = v
+			mu.Unlock()
+		}()
+
+		wg.Wait()
+		ch <- r
+	}()
+
+	r := <-ch
+	if r.err != nil {
+		return nil, r.err
 	}
 
-	volume, err := p.client.GetVolume(ctx, p.device)
-	if err != nil {
-		return nil, fmt.Errorf("get volume: %w", err)
-	}
-
-	track := parseTrackMetadata(position.TrackMetaData, position.TrackURI)
+	track := parseTrackMetadata(r.position.TrackMetaData, r.position.TrackURI)
 	if track != nil {
-		track.Duration = parseDuration(position.TrackDuration)
+		track.Duration = parseDuration(r.position.TrackDuration)
 	}
 
 	return &core.PlaybackState{
 		Track:     track,
 		Device:    p.coreDevice(),
-		IsPlaying: transport.CurrentTransportState == "PLAYING",
-		Progress:  parseDuration(position.RelTime),
-		Volume:    volume,
+		IsPlaying: r.transport.CurrentTransportState == "PLAYING",
+		Progress:  parseDuration(r.position.RelTime),
+		Volume:    r.volume,
 	}, nil
 }
 

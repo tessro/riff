@@ -6,19 +6,45 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
+
+// Cache TTLs
+const (
+	zoneGroupCacheTTL = 30 * time.Second
+	volumeCacheTTL    = 5 * time.Second
+)
+
+// volumeCache stores cached volume for a device.
+type volumeCache struct {
+	volume    int
+	fetchedAt time.Time
+}
+
+// groupCache stores cached zone groups.
+type groupCache struct {
+	groups    []Group
+	fetchedAt time.Time
+}
 
 // Client provides high-level access to Sonos devices.
 type Client struct {
 	discovery *Discovery
 	soap      *SOAPClient
+
+	// Caches
+	mu           sync.RWMutex
+	volumeCache  map[string]*volumeCache // keyed by device UUID
+	groupCache   *groupCache
 }
 
 // NewClient creates a new Sonos client.
 func NewClient() *Client {
 	return &Client{
-		discovery: NewDiscovery(0),
-		soap:      NewSOAPClient(),
+		discovery:   NewDiscovery(0),
+		soap:        NewSOAPClient(),
+		volumeCache: make(map[string]*volumeCache),
 	}
 }
 
@@ -155,7 +181,18 @@ func (c *Client) GetMediaInfo(ctx context.Context, device *Device) (*MediaInfo, 
 }
 
 // GetVolume retrieves the current volume level (0-100).
+// Results are cached for a short period to reduce network calls.
 func (c *Client) GetVolume(ctx context.Context, device *Device) (int, error) {
+	// Check cache first
+	c.mu.RLock()
+	if cached, ok := c.volumeCache[device.UUID]; ok {
+		if time.Since(cached.fetchedAt) < volumeCacheTTL {
+			c.mu.RUnlock()
+			return cached.volume, nil
+		}
+	}
+	c.mu.RUnlock()
+
 	args := map[string]string{
 		"InstanceID": "0",
 		"Channel":    "Master",
@@ -177,6 +214,12 @@ func (c *Client) GetVolume(ctx context.Context, device *Device) (int, error) {
 	}
 
 	vol, _ := strconv.Atoi(envelope.Body.Response.CurrentVolume)
+
+	// Update cache
+	c.mu.Lock()
+	c.volumeCache[device.UUID] = &volumeCache{volume: vol, fetchedAt: time.Now()}
+	c.mu.Unlock()
+
 	return vol, nil
 }
 
@@ -195,7 +238,16 @@ func (c *Client) SetVolume(ctx context.Context, device *Device, volume int) erro
 		"DesiredVolume": strconv.Itoa(volume),
 	}
 	_, err := c.soap.Call(ctx, device.IP, device.Port, RenderingControlEndpoint, RenderingControlService, "SetVolume", args)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Update cache with new volume
+	c.mu.Lock()
+	c.volumeCache[device.UUID] = &volumeCache{volume: volume, fetchedAt: time.Now()}
+	c.mu.Unlock()
+
+	return nil
 }
 
 // Play starts playback.
