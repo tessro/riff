@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:developer.spotify.com)",
+
+      "Skill(beads)",
+      "Bash(bd blocked)",
+      "Bash(bd close:*)",
+      "Bash(bd create:*)",
+      "Bash(bd list:*)",
+      "Bash(bd ready:*)",
+      "Bash(bd show:*)",
+      "Bash(bd stats:*)",
+      "Bash(bd sync:*)",
+      "Bash(bd update:*)",
+
+      "Bash(./riff:*)",
+
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(tree:*)",
+
+      "Bash(mkdir:*)",
+
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+
+      "Bash(go build:*)",
+      "Bash(go get:*)",
+      "Bash(go test:*)",
+      "Bash(make:*)"
+    ]
+  },
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ]
+  }
+}
