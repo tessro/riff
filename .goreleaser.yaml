@@ -1,0 +1,54 @@
+version: 2
+
+project_name: riff
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: riff
+    main: ./cmd/riff
+    binary: riff
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/tess/riff/internal/cli.Version={{.Version}}
+      - -X github.com/tess/riff/internal/cli.Commit={{.ShortCommit}}
+      - -X github.com/tess/riff/internal/cli.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  github:
+    owner: tess
+    name: riff
+  draft: false
+  prerelease: auto

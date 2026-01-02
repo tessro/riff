@@ -234,6 +234,11 @@ func getSpotifyClient() (*client.Client, error) {
 	}
 
 	spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+	if Verbose() {
+		spotifyClient.SetVerbose(true, func(format string, args ...interface{}) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		})
+	}
 	if err := spotifyClient.LoadToken(); err != nil {
 		return nil, fmt.Errorf("failed to load token: %w", err)
 	}

@@ -27,7 +27,12 @@ func (c *Client) Play(ctx context.Context, deviceID string, opts *PlayOptions) e
 	if deviceID != "" {
 		path = BuildURL(path, map[string]string{"device_id": deviceID})
 	}
-	return c.Put(ctx, path, opts, nil)
+	// Spotify requires a JSON body even for resume - send empty object if no options
+	body := opts
+	if body == nil {
+		body = &PlayOptions{}
+	}
+	return c.Put(ctx, path, body, nil)
 }
 
 // Pause pauses playback.

@@ -76,6 +76,11 @@ func getSpotifyDevices(ctx context.Context) ([]deviceInfo, error) {
 	}
 
 	spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+	if Verbose() {
+		spotifyClient.SetVerbose(true, func(format string, args ...interface{}) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		})
+	}
 	if err := spotifyClient.LoadToken(); err != nil {
 		return nil, err
 	}

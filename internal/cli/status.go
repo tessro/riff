@@ -108,6 +108,11 @@ func getSpotifyStatus(ctx context.Context) (*statusResult, error) {
 	}
 
 	spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+	if Verbose() {
+		spotifyClient.SetVerbose(true, func(format string, args ...interface{}) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		})
+	}
 	if err := spotifyClient.LoadToken(); err != nil {
 		return nil, err
 	}

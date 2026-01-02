@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"github.com/tess/riff/internal/spotify/auth"
 	"github.com/tess/riff/internal/spotify/client"

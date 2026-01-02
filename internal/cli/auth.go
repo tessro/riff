@@ -118,6 +118,11 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 
 	// Get user info to confirm success
 	spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+	if Verbose() {
+		spotifyClient.SetVerbose(true, func(format string, args ...interface{}) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		})
+	}
 	if err := spotifyClient.LoadToken(); err != nil {
 		return fmt.Errorf("failed to load token: %w", err)
 	}
@@ -214,6 +219,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+	if Verbose() {
+		spotifyClient.SetVerbose(true, func(format string, args ...interface{}) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		})
+	}
 	if err := spotifyClient.LoadToken(); err != nil {
 		return fmt.Errorf("failed to load token: %w", err)
 	}
