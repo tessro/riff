@@ -43,6 +43,18 @@ func New(clientID string, storage *auth.TokenStorage) *Client {
 	}
 }
 
+// SetVerbose enables verbose logging.
+func (c *Client) SetVerbose(verbose bool, logFunc func(format string, args ...interface{})) {
+	c.verbose = verbose
+	c.logFunc = logFunc
+}
+
+func (c *Client) log(format string, args ...interface{}) {
+	if c.verbose && c.logFunc != nil {
+		c.logFunc(format, args...)
+	}
+}
+
 // LoadToken loads the token from storage.
 func (c *Client) LoadToken() error {
 	token, err := c.storage.Load()
@@ -156,11 +168,18 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 
 	fullURL := BaseURL + path
 
+	if jsonBody != nil {
+		c.log("[spotify] %s %s\n  body: %s", method, fullURL, string(jsonBody))
+	} else {
+		c.log("[spotify] %s %s", method, fullURL)
+	}
+
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Wait before retry (skip on first attempt)
 		if attempt > 0 {
 			wait := baseRetryWait * time.Duration(1<<(attempt-1)) // exponential backoff
+			c.log("[spotify] retry %d/%d after %v (last error: %v)", attempt, maxRetries, wait, lastErr)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -186,6 +205,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
+			c.log("[spotify] network error: %v", err)
 			continue // Retry on network error
 		}
 
@@ -193,7 +213,13 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		resp.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)
+			c.log("[spotify] read error: %v", err)
 			continue
+		}
+
+		c.log("[spotify] response: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		if resp.StatusCode >= 400 {
+			c.log("[spotify] response body: %s", string(respBody))
 		}
 
 		if resp.StatusCode == http.StatusNoContent {
@@ -208,6 +234,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 			} else {
 				lastErr = fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(respBody))
 			}
+			c.log("[spotify] server error, will retry: %v", lastErr)
 			continue // Retry
 		}
 
@@ -242,6 +269,19 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("Spotify API error %d: %s", e.ErrorInfo.Status, e.ErrorInfo.Message)
+}
+
+// IsNoActiveDevice returns true if the error indicates no active device.
+func (e *APIError) IsNoActiveDevice() bool {
+	return e.ErrorInfo.Status == 404
+}
+
+// IsNoActiveDeviceError checks if an error is a "no active device" error.
+func IsNoActiveDeviceError(err error) bool {
+	if apiErr, ok := err.(*APIError); ok {
+		return apiErr.IsNoActiveDevice()
+	}
+	return false
 }
 
 // BuildURL builds a URL with query parameters.
