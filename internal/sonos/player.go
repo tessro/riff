@@ -3,6 +3,7 @@ package sonos
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tessro/riff/internal/core"
@@ -93,6 +94,24 @@ func (p *Player) GetQueue(ctx context.Context) (*core.Queue, error) {
 // AddToQueue adds a track to the queue.
 func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
 	return p.client.AddURIToQueue(ctx, p.device, trackURI, "")
+}
+
+// PlayURI plays a specific URI on the device.
+func (p *Player) PlayURI(ctx context.Context, uri string) error {
+	sonosURI := ConvertSpotifyURI(uri)
+	return p.client.PlayURI(ctx, p.device, sonosURI, "")
+}
+
+// ConvertSpotifyURI converts a Spotify URI to Sonos format.
+// Spotify URI: spotify:track:4iV5W9uYEdYUVa79Axb7Rh
+// Sonos URI: x-sonos-spotify:spotify:track:4iV5W9uYEdYUVa79Axb7Rh?...
+func ConvertSpotifyURI(uri string) string {
+	if !strings.HasPrefix(uri, "spotify:") {
+		return uri
+	}
+	// Sonos expects the Spotify URI URL-encoded within x-sonos-spotify scheme
+	encoded := strings.ReplaceAll(uri, ":", "%3a")
+	return "x-sonos-spotify:" + encoded + "?sid=9&flags=8224&sn=1"
 }
 
 // coreDevice converts the Sonos device to a core.Device.

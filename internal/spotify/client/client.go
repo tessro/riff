@@ -284,6 +284,15 @@ func IsNoActiveDeviceError(err error) bool {
 	return false
 }
 
+// IsAlreadyPlayingError checks if an error is a 403 "restriction violated" error,
+// which occurs when trying to resume playback that is already active.
+func IsAlreadyPlayingError(err error) bool {
+	if apiErr, ok := err.(*APIError); ok {
+		return apiErr.ErrorInfo.Status == 403
+	}
+	return false
+}
+
 // BuildURL builds a URL with query parameters.
 func BuildURL(path string, params map[string]string) string {
 	if len(params) == 0 {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/tessro/riff/internal/core"
 	"github.com/tessro/riff/internal/spotify/player"
 )
 
@@ -201,11 +202,14 @@ func runVolume(cmd *cobra.Command, args []string) error {
 	p := player.New(spotifyClient)
 
 	if controlDevice != "" {
-		deviceID, err := resolveDevice(ctx, spotifyClient, controlDevice)
+		resolved, err := resolveDevice(ctx, spotifyClient, controlDevice)
 		if err != nil {
 			return err
 		}
-		p.SetDevice(deviceID)
+		if resolved.Platform != core.PlatformSpotify {
+			return fmt.Errorf("volume control for Sonos devices not yet supported via --device flag")
+		}
+		p.SetDevice(resolved.SpotifyID)
 	}
 
 	// Get current state for relative adjustments or display
@@ -272,11 +276,14 @@ func getSpotifyPlayer(ctx context.Context) (*player.Player, error) {
 	p := player.New(spotifyClient)
 
 	if controlDevice != "" {
-		deviceID, err := resolveDevice(ctx, spotifyClient, controlDevice)
+		resolved, err := resolveDevice(ctx, spotifyClient, controlDevice)
 		if err != nil {
 			return nil, err
 		}
-		p.SetDevice(deviceID)
+		if resolved.Platform != core.PlatformSpotify {
+			return nil, fmt.Errorf("control commands for Sonos devices not yet supported via --device flag")
+		}
+		p.SetDevice(resolved.SpotifyID)
 	}
 
 	return p, nil

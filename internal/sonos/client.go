@@ -252,12 +252,25 @@ func (c *Client) IsPlaying(ctx context.Context, device *Device) (bool, error) {
 // AddURIToQueue adds a URI to the playback queue.
 func (c *Client) AddURIToQueue(ctx context.Context, device *Device, uri, metadata string) error {
 	args := map[string]string{
-		"InstanceID":                "0",
-		"EnqueuedURI":               uri,
-		"EnqueuedURIMetaData":       metadata,
+		"InstanceID":                      "0",
+		"EnqueuedURI":                     uri,
+		"EnqueuedURIMetaData":             metadata,
 		"DesiredFirstTrackNumberEnqueued": "0",
-		"EnqueueAsNext":             "0",
+		"EnqueueAsNext":                   "0",
 	}
 	_, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "AddURIToQueue", args)
 	return err
+}
+
+// PlayURI sets the transport URI and starts playback.
+func (c *Client) PlayURI(ctx context.Context, device *Device, uri, metadata string) error {
+	args := map[string]string{
+		"InstanceID":         "0",
+		"CurrentURI":         uri,
+		"CurrentURIMetaData": metadata,
+	}
+	if _, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "SetAVTransportURI", args); err != nil {
+		return fmt.Errorf("set transport URI: %w", err)
+	}
+	return c.Play(ctx, device)
 }
