@@ -1,4 +1,4 @@
-.PHONY: build install test lint clean
+.PHONY: build install test lint clean setup
 
 BINARY := riff
 BUILD_DIR := ./cmd/riff
@@ -24,3 +24,7 @@ lint:
 clean:
 	rm -f $(BINARY)
 	go clean
+
+setup:
+	go install github.com/evilmartians/lefthook@latest
+	lefthook install
