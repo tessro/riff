@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/sonos"
 	"github.com/tessro/riff/internal/spotify/player"
 )
 
@@ -194,8 +195,38 @@ func runRestart(cmd *cobra.Command, args []string) error {
 func runVolume(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	// Determine target volume from args/flags
+	var targetVolume *int
+	if volumeUp || volumeDown || len(args) > 0 {
+		v := 0
+		targetVolume = &v
+		if len(args) > 0 {
+			val, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid volume level: %s", args[0])
+			}
+			if val < 0 || val > 100 {
+				return fmt.Errorf("volume must be between 0 and 100")
+			}
+			*targetVolume = val
+		}
+	}
+
+	// Try to find active playback - check Sonos first since it's local
+	sonosPlayer, sonosState := getActiveSonosPlayer(ctx)
+
+	// If Sonos is playing, control it
+	if sonosPlayer != nil && sonosState != nil && sonosState.IsPlaying {
+		return runVolumeOnPlayer(ctx, sonosPlayer, sonosState.Volume, targetVolume, "sonos")
+	}
+
+	// Otherwise try Spotify
 	spotifyClient, err := getSpotifyClient()
 	if err != nil {
+		// If no Spotify and we found a Sonos (even if not playing), use that
+		if sonosPlayer != nil && sonosState != nil {
+			return runVolumeOnPlayer(ctx, sonosPlayer, sonosState.Volume, targetVolume, "sonos")
+		}
 		return err
 	}
 
@@ -206,65 +237,121 @@ func runVolume(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if resolved.Platform != core.PlatformSpotify {
-			return fmt.Errorf("volume control for Sonos devices not yet supported via --device flag")
+		if resolved.Platform == core.PlatformSonos && resolved.SonosDevice != nil {
+			// Use Sonos for this device
+			sonosClient := sonos.NewClient()
+			sp := sonos.NewPlayer(sonosClient, resolved.SonosDevice)
+			state, _ := sp.GetState(ctx)
+			vol := 0
+			if state != nil {
+				vol = state.Volume
+			}
+			return runVolumeOnPlayer(ctx, sp, vol, targetVolume, "sonos")
 		}
 		p.SetDevice(resolved.SpotifyID)
 	}
 
-	// Get current state for relative adjustments or display
 	state, err := p.GetState(ctx)
 	if err != nil {
+		// If Spotify fails but we have Sonos available, use that
+		if sonosPlayer != nil && sonosState != nil {
+			return runVolumeOnPlayer(ctx, sonosPlayer, sonosState.Volume, targetVolume, "sonos")
+		}
 		return fmt.Errorf("failed to get playback state: %w", err)
 	}
 
-	currentVolume := state.Volume
+	return runVolumeOnPlayer(ctx, p, state.Volume, targetVolume, "spotify")
+}
 
-	var targetVolume int
+// volumeController is an interface for volume control across platforms.
+type volumeController interface {
+	Volume(ctx context.Context, percent int) error
+}
 
-	if volumeUp {
-		targetVolume = currentVolume + 10
-		if targetVolume > 100 {
-			targetVolume = 100
-		}
-	} else if volumeDown {
-		targetVolume = currentVolume - 10
-		if targetVolume < 0 {
-			targetVolume = 0
-		}
-	} else if len(args) > 0 {
-		v, err := strconv.Atoi(args[0])
-		if err != nil {
-			return fmt.Errorf("invalid volume level: %s", args[0])
-		}
-		if v < 0 || v > 100 {
-			return fmt.Errorf("volume must be between 0 and 100")
-		}
-		targetVolume = v
-	} else {
+func runVolumeOnPlayer(ctx context.Context, p volumeController, currentVolume int, targetVolume *int, platform string) error {
+	if targetVolume == nil {
 		// Just show current volume
 		if JSONOutput() {
-			_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"volume": currentVolume})
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				"volume":   currentVolume,
+				"platform": platform,
+			})
 		} else {
-			fmt.Printf("🔊 Volume: %d%%\n", currentVolume)
+			fmt.Printf("🔊 Volume: %d%% (%s)\n", currentVolume, platform)
 		}
 		return nil
 	}
 
-	if err := p.Volume(ctx, targetVolume); err != nil {
+	// Calculate target if relative
+	target := *targetVolume
+	if volumeUp {
+		target = currentVolume + 10
+		if target > 100 {
+			target = 100
+		}
+	} else if volumeDown {
+		target = currentVolume - 10
+		if target < 0 {
+			target = 0
+		}
+	}
+
+	if err := p.Volume(ctx, target); err != nil {
 		return fmt.Errorf("failed to set volume: %w", err)
 	}
 
 	if JSONOutput() {
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-			"volume":   targetVolume,
+			"volume":   target,
 			"previous": currentVolume,
+			"platform": platform,
 		})
 	} else {
-		fmt.Printf("🔊 Volume: %d%% (was %d%%)\n", targetVolume, currentVolume)
+		fmt.Printf("🔊 Volume: %d%% (was %d%%) [%s]\n", target, currentVolume, platform)
 	}
 
 	return nil
+}
+
+// getActiveSonosPlayer returns a Sonos player and its state if one is actively playing.
+func getActiveSonosPlayer(ctx context.Context) (*sonos.Player, *core.PlaybackState) {
+	client := sonos.NewClient()
+
+	devices, err := client.Discover(ctx)
+	if err != nil || len(devices) == 0 {
+		return nil, nil
+	}
+
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		return nil, nil
+	}
+
+	// Find a playing group
+	for _, g := range groups {
+		if g.Coordinator == nil {
+			continue
+		}
+		player := sonos.NewPlayer(client, g.Coordinator)
+		state, err := player.GetState(ctx)
+		if err != nil {
+			continue
+		}
+		if state.IsPlaying || state.Track != nil {
+			return player, state
+		}
+	}
+
+	// No playing group found, return the first coordinator anyway
+	for _, g := range groups {
+		if g.Coordinator != nil {
+			player := sonos.NewPlayer(client, g.Coordinator)
+			state, _ := player.GetState(ctx)
+			return player, state
+		}
+	}
+
+	return nil, nil
 }
 
 func getSpotifyPlayer(ctx context.Context) (*player.Player, error) {
