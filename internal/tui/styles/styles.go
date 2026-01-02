@@ -105,8 +105,8 @@ func ProgressBar(percent float64, width int) string {
 	filledStyle := lipgloss.NewStyle().Foreground(Primary)
 	emptyStyle := lipgloss.NewStyle().Foreground(Border)
 
-	bar := filledStyle.Render(repeat("━", filled)) +
-		emptyStyle.Render(repeat("─", width-filled))
+	bar := filledStyle.Render(Repeat("━", filled)) +
+		emptyStyle.Render(Repeat("─", width-filled))
 
 	return bar
 }
@@ -135,7 +135,8 @@ func DeviceIcon(deviceType string) string {
 	}
 }
 
-func repeat(s string, n int) string {
+// Repeat repeats a string n times
+func Repeat(s string, n int) string {
 	result := ""
 	for i := 0; i < n; i++ {
 		result += s

@@ -47,9 +47,9 @@ func (n *NowPlaying) renderTrack(state *core.PlaybackState, width int) string {
 	titleStyle := styles.Title.Copy().Width(width - 4)
 	title := titleStyle.Render(track.Title)
 
-	// Artist and album
-	artist := styles.Subtitle.Render(track.Artist)
-	album := styles.Dim.Render(track.Album)
+	// Artist and album - use full width
+	artist := styles.Subtitle.Copy().Width(width - 4).Render(track.Artist)
+	album := styles.Dim.Copy().Width(width - 4).Render(track.Album)
 
 	// Progress bar
 	progressWidth := width - 14 // Account for times on either side
@@ -73,7 +73,7 @@ func (n *NowPlaying) renderTrack(state *core.PlaybackState, width int) string {
 	}
 
 	// Playback controls indicator
-	controls := n.renderControls(state)
+	controls := n.renderControls(state, width)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		icon+" "+title,
@@ -87,7 +87,7 @@ func (n *NowPlaying) renderTrack(state *core.PlaybackState, width int) string {
 	)
 }
 
-func (n *NowPlaying) renderControls(state *core.PlaybackState) string {
+func (n *NowPlaying) renderControls(state *core.PlaybackState, width int) string {
 	var controls string
 
 	// Shuffle indicator
@@ -103,6 +103,7 @@ func (n *NowPlaying) renderControls(state *core.PlaybackState) string {
 	controls += styles.Dim.Render(" ⏭")
 
 	return lipgloss.NewStyle().
+		Width(width).
 		Align(lipgloss.Center).
 		Render(controls)
 }

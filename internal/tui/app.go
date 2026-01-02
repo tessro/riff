@@ -430,9 +430,12 @@ func (m Model) renderStatusBar() string {
 }
 
 func (m Model) renderHelp() string {
+	title := "Riff UI - Keyboard Shortcuts"
+	divider := styles.Repeat("═", len(title))
+
 	help := `
-  Riff TUI - Keyboard Shortcuts
-  ═══════════════════════════════
+  ` + title + `
+  ` + divider + `
 
   Global
   ──────
