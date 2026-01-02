@@ -225,6 +225,9 @@ func outputStatusJSON(states []*statusResult) error {
 			}
 			item["progress"] = s.State.Progress.String()
 			item["progress_percent"] = s.State.ProgressPercent()
+		} else if s.State.IsPlaying {
+			// Playing but no track info available
+			item["track_info_unavailable"] = true
 		}
 
 		if s.Device != nil {
@@ -252,7 +255,20 @@ func outputStatusTable(states []*statusResult) error {
 		fmt.Printf("[%s]\n", strings.ToUpper(s.Platform))
 
 		if s.State.Track == nil {
-			fmt.Println("  No track playing")
+			// No track info, but might still be playing
+			if s.State.IsPlaying {
+				fmt.Println("  ▶ Playing (track info unavailable)")
+			} else {
+				fmt.Println("  No track playing")
+			}
+			// Still show device info
+			if s.Device != nil {
+				fmt.Printf("    📱 %s", s.Device.Name)
+				if s.State.Volume > 0 {
+					fmt.Printf(" (🔊 %d%%)", s.State.Volume)
+				}
+				fmt.Println()
+			}
 			continue
 		}
 
