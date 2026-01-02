@@ -41,6 +41,14 @@ var prevCmd = &cobra.Command{
 	RunE:  runPrev,
 }
 
+var restartCmd = &cobra.Command{
+	Use:     "restart",
+	Aliases: []string{"replay"},
+	Short:   "Restart current track",
+	Long:    `Restart the current track from the beginning.`,
+	RunE:    runRestart,
+}
+
 var (
 	volumeUp   bool
 	volumeDown bool
@@ -64,6 +72,7 @@ func init() {
 	resumeCmd.Flags().StringVarP(&controlDevice, "device", "d", "", "Target device")
 	nextCmd.Flags().StringVarP(&controlDevice, "device", "d", "", "Target device")
 	prevCmd.Flags().StringVarP(&controlDevice, "device", "d", "", "Target device")
+	restartCmd.Flags().StringVarP(&controlDevice, "device", "d", "", "Target device")
 	volumeCmd.Flags().StringVarP(&controlDevice, "device", "d", "", "Target device")
 	volumeCmd.Flags().BoolVar(&volumeUp, "up", false, "Increase volume by 10%")
 	volumeCmd.Flags().BoolVar(&volumeDown, "down", false, "Decrease volume by 10%")
@@ -72,6 +81,7 @@ func init() {
 	rootCmd.AddCommand(resumeCmd)
 	rootCmd.AddCommand(nextCmd)
 	rootCmd.AddCommand(prevCmd)
+	rootCmd.AddCommand(restartCmd)
 	rootCmd.AddCommand(volumeCmd)
 }
 
@@ -154,6 +164,27 @@ func runPrev(cmd *cobra.Command, args []string) error {
 		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "previous"})
 	} else {
 		fmt.Println("⏮ Previous track")
+	}
+
+	return nil
+}
+
+func runRestart(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	p, err := getSpotifyPlayer(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := p.Seek(ctx, 0); err != nil {
+		return fmt.Errorf("failed to restart: %w", err)
+	}
+
+	if JSONOutput() {
+		json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "restarted"})
+	} else {
+		fmt.Println("⏪ Restarted track")
 	}
 
 	return nil
