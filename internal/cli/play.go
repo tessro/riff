@@ -140,20 +140,25 @@ func playWithFallback(ctx context.Context, c *client.Client, p *player.Player, p
 		return fmt.Errorf("failed to play: %w", err)
 	}
 
-	// Try to use default device
+	// Try to use default device or show picker
 	defaultDevice := cfg.Defaults.Device
+	var deviceID string
 	if defaultDevice == "" {
-		return fmt.Errorf("no active device and no default device configured. Set defaults.device in config or use --to flag")
-	}
+		// No default configured, show interactive picker
+		deviceID, defaultDevice, err = selectDevice(ctx, c)
+		if err != nil {
+			return err
+		}
+	} else {
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "No active device, transferring to default: %s\n", defaultDevice)
+		}
 
-	if Verbose() {
-		fmt.Fprintf(os.Stderr, "No active device, transferring to default: %s\n", defaultDevice)
-	}
-
-	// Resolve and transfer to default device
-	deviceID, err := resolveDevice(ctx, c, defaultDevice)
-	if err != nil {
-		return fmt.Errorf("failed to resolve default device '%s': %w", defaultDevice, err)
+		// Resolve default device
+		deviceID, err = resolveDevice(ctx, c, defaultDevice)
+		if err != nil {
+			return fmt.Errorf("failed to resolve default device '%s': %w", defaultDevice, err)
+		}
 	}
 
 	// Transfer playback to the device (this wakes it up)
@@ -275,20 +280,25 @@ func playSearchResultWithFallback(ctx context.Context, c *client.Client, p *play
 		return fmt.Errorf("failed to play %s: %w", itemType, err)
 	}
 
-	// Try to use default device
+	// Try to use default device or show picker
 	defaultDevice := cfg.Defaults.Device
+	var deviceID string
 	if defaultDevice == "" {
-		return fmt.Errorf("no active device and no default device configured. Set defaults.device in config or use --to flag")
-	}
+		// No default configured, show interactive picker
+		deviceID, defaultDevice, err = selectDevice(ctx, c)
+		if err != nil {
+			return err
+		}
+	} else {
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "No active device, transferring to default: %s\n", defaultDevice)
+		}
 
-	if Verbose() {
-		fmt.Fprintf(os.Stderr, "No active device, transferring to default: %s\n", defaultDevice)
-	}
-
-	// Resolve and transfer to default device
-	deviceID, err := resolveDevice(ctx, c, defaultDevice)
-	if err != nil {
-		return fmt.Errorf("failed to resolve default device '%s': %w", defaultDevice, err)
+		// Resolve default device
+		deviceID, err = resolveDevice(ctx, c, defaultDevice)
+		if err != nil {
+			return fmt.Errorf("failed to resolve default device '%s': %w", defaultDevice, err)
+		}
 	}
 
 	// Transfer playback to the device
@@ -380,4 +390,50 @@ func resolveDevice(ctx context.Context, c *client.Client, nameOrID string) (stri
 	}
 
 	return "", fmt.Errorf("device '%s' not found", nameOrID)
+}
+
+// selectDevice shows an interactive picker for device selection
+func selectDevice(ctx context.Context, c *client.Client) (deviceID, deviceName string, err error) {
+	devices, err := c.GetDevices(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get devices: %w", err)
+	}
+
+	if len(devices) == 0 {
+		return "", "", fmt.Errorf("no devices found. Make sure Spotify is open on at least one device")
+	}
+
+	// Build options for picker
+	var options []huh.Option[string]
+	for _, d := range devices {
+		label := d.Name
+		if d.Type != "" {
+			label = fmt.Sprintf("%s (%s)", d.Name, d.Type)
+		}
+		options = append(options, huh.NewOption(label, d.ID))
+	}
+
+	var selectedID string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("No active device found").
+				Description("Select a device to play on").
+				Options(options...).
+				Value(&selectedID),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return "", "", fmt.Errorf("selection cancelled")
+	}
+
+	// Find the device name
+	for _, d := range devices {
+		if d.ID == selectedID {
+			return selectedID, d.Name, nil
+		}
+	}
+
+	return selectedID, "", nil
 }
