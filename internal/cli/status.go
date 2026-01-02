@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/sonos"
 	"github.com/tessro/riff/internal/spotify/auth"
 	"github.com/tessro/riff/internal/spotify/client"
 	"github.com/tessro/riff/internal/spotify/player"
@@ -56,9 +57,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if showSonos {
-		// TODO: Implement Sonos status when Phase 3 is complete
-		if Verbose() {
-			fmt.Fprintln(os.Stderr, "Sonos status not yet implemented")
+		sonosStates, err := getSonosStatus(ctx)
+		if err != nil {
+			if Verbose() {
+				fmt.Fprintf(os.Stderr, "Sonos error: %v\n", err)
+			}
+		} else {
+			states = append(states, sonosStates...)
 		}
 	}
 
@@ -132,6 +137,53 @@ func getSpotifyStatus(ctx context.Context) (*statusResult, error) {
 		State:    state,
 		Device:   state.Device,
 	}, nil
+}
+
+func getSonosStatus(ctx context.Context) ([]*statusResult, error) {
+	client := sonos.NewClient()
+
+	devices, err := client.Discover(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(devices) == 0 {
+		return nil, nil
+	}
+
+	// Get zone groups to find coordinators (only coordinators have playback state)
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		return nil, err
+	}
+
+	var results []*statusResult
+	for _, g := range groups {
+		if g.Coordinator == nil {
+			continue
+		}
+
+		// Get playback state from coordinator
+		sonosPlayer := sonos.NewPlayer(client, g.Coordinator)
+		state, err := sonosPlayer.GetState(ctx)
+		if err != nil {
+			if Verbose() {
+				fmt.Fprintf(os.Stderr, "Sonos %s error: %v\n", g.Name, err)
+			}
+			continue
+		}
+
+		// Only include if playing or has a track
+		if state.Track != nil || state.IsPlaying {
+			results = append(results, &statusResult{
+				Platform: "sonos",
+				State:    state,
+				Device:   state.Device,
+			})
+		}
+	}
+
+	return results, nil
 }
 
 func outputStatusJSON(states []*statusResult) error {

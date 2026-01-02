@@ -248,3 +248,16 @@ func (c *Client) IsPlaying(ctx context.Context, device *Device) (bool, error) {
 	}
 	return strings.EqualFold(info.CurrentTransportState, "PLAYING"), nil
 }
+
+// AddURIToQueue adds a URI to the playback queue.
+func (c *Client) AddURIToQueue(ctx context.Context, device *Device, uri, metadata string) error {
+	args := map[string]string{
+		"InstanceID":                "0",
+		"EnqueuedURI":               uri,
+		"EnqueuedURIMetaData":       metadata,
+		"DesiredFirstTrackNumberEnqueued": "0",
+		"EnqueueAsNext":             "0",
+	}
+	_, err := c.soap.Call(ctx, device.IP, device.Port, AVTransportEndpoint, AVTransportService, "AddURIToQueue", args)
+	return err
+}

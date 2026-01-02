@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/sonos"
 	"github.com/tessro/riff/internal/spotify/auth"
 	"github.com/tessro/riff/internal/spotify/client"
 	"github.com/tessro/riff/internal/spotify/player"
@@ -42,7 +43,15 @@ func runDevices(cmd *cobra.Command, args []string) error {
 		allDevices = append(allDevices, spotifyDevices...)
 	}
 
-	// TODO: Get Sonos devices when Phase 3 is complete
+	// Get Sonos devices
+	sonosDevices, err := getSonosDevices(ctx)
+	if err != nil {
+		if Verbose() {
+			fmt.Fprintf(os.Stderr, "Sonos error: %v\n", err)
+		}
+	} else {
+		allDevices = append(allDevices, sonosDevices...)
+	}
 
 	if len(allDevices) == 0 {
 		if JSONOutput() {
@@ -101,6 +110,58 @@ func getSpotifyDevices(ctx context.Context) ([]deviceInfo, error) {
 		result[i] = deviceInfo{
 			Device:   &dev,
 			Platform: "spotify",
+		}
+	}
+
+	return result, nil
+}
+
+func getSonosDevices(ctx context.Context) ([]deviceInfo, error) {
+	client := sonos.NewClient()
+
+	devices, err := client.Discover(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(devices) == 0 {
+		return nil, nil
+	}
+
+	// Get zone groups to find device names and active status
+	groups, err := client.ListGroups(ctx, devices[0])
+	if err != nil {
+		// Fall back to basic device info
+		result := make([]deviceInfo, len(devices))
+		for i, d := range devices {
+			result[i] = deviceInfo{
+				Device: &core.Device{
+					ID:       d.UUID,
+					Name:     d.Name,
+					Type:     core.DeviceTypeSpeaker,
+					Platform: core.PlatformSonos,
+				},
+				Platform: "sonos",
+			}
+		}
+		return result, nil
+	}
+
+	// Build device info from groups (includes names)
+	var result []deviceInfo
+	for _, g := range groups {
+		for _, m := range g.Members {
+			isCoordinator := g.Coordinator != nil && m.UUID == g.Coordinator.UUID
+			result = append(result, deviceInfo{
+				Device: &core.Device{
+					ID:       m.UUID,
+					Name:     m.Name,
+					Type:     core.DeviceTypeSpeaker,
+					Platform: core.PlatformSonos,
+					IsActive: isCoordinator,
+				},
+				Platform: "sonos",
+			})
 		}
 	}
 

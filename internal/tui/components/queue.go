@@ -114,6 +114,9 @@ func (q *Queue) renderQueue(queue *core.Queue, width, maxLines int) string {
 }
 
 func truncate(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
 	if len(s) <= max {
 		return s
 	}

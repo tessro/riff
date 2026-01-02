@@ -92,8 +92,7 @@ func (p *Player) GetQueue(ctx context.Context) (*core.Queue, error) {
 
 // AddToQueue adds a track to the queue.
 func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
-	// Would need AddURIToQueue SOAP call
-	return fmt.Errorf("not implemented")
+	return p.client.AddURIToQueue(ctx, p.device, trackURI, "")
 }
 
 // coreDevice converts the Sonos device to a core.Device.

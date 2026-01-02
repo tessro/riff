@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/sonos"
+	"github.com/tessro/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/spotify/player"
 	"github.com/tessro/riff/internal/tail"
 )
 
@@ -101,10 +106,64 @@ func runTail(cmd *cobra.Command, args []string) error {
 	}
 }
 
-// getPlayer returns a player based on config.
-// This is a placeholder that will be implemented when integrating with Spotify/Sonos.
+// getPlayer returns a player based on config and flags.
 func getPlayer() (core.Player, error) {
-	// TODO: Get player from config/discovery
-	// For now, return an error indicating no player is configured
-	return nil, fmt.Errorf("no player configured - run 'riff auth' first")
+	ctx := context.Background()
+
+	// Try Spotify first if configured
+	if cfg.Spotify.ClientID != "" {
+		storage, err := auth.NewTokenStorage("")
+		if err == nil {
+			spotifyClient := client.New(cfg.Spotify.ClientID, storage)
+			if err := spotifyClient.LoadToken(); err == nil && spotifyClient.HasToken() {
+				return player.New(spotifyClient), nil
+			}
+		}
+	}
+
+	// Try Sonos discovery
+	sonosClient := sonos.NewClient()
+	devices, err := sonosClient.Discover(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("no player available: spotify not authenticated and sonos discovery failed: %w", err)
+	}
+
+	if len(devices) == 0 {
+		return nil, fmt.Errorf("no player available: spotify not authenticated and no sonos devices found")
+	}
+
+	// If specific device requested, find it
+	if tailDevice != "" {
+		groups, err := sonosClient.ListGroups(ctx, devices[0])
+		if err == nil {
+			for _, g := range groups {
+				for _, m := range g.Members {
+					if strings.EqualFold(m.Name, tailDevice) || m.UUID == tailDevice {
+						return sonos.NewPlayer(sonosClient, m), nil
+					}
+				}
+			}
+		}
+		return nil, fmt.Errorf("device '%s' not found", tailDevice)
+	}
+
+	// Use default room from config or first device
+	if cfg.Sonos.DefaultRoom != "" {
+		groups, err := sonosClient.ListGroups(ctx, devices[0])
+		if err == nil {
+			for _, g := range groups {
+				if g.Coordinator != nil && strings.EqualFold(g.Coordinator.Name, cfg.Sonos.DefaultRoom) {
+					return sonos.NewPlayer(sonosClient, g.Coordinator), nil
+				}
+			}
+		}
+	}
+
+	// Fall back to first coordinator
+	groups, err := sonosClient.ListGroups(ctx, devices[0])
+	if err == nil && len(groups) > 0 && groups[0].Coordinator != nil {
+		return sonos.NewPlayer(sonosClient, groups[0].Coordinator), nil
+	}
+
+	return sonos.NewPlayer(sonosClient, devices[0]), nil
 }
