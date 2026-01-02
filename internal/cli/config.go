@@ -12,9 +12,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/config"
-	"github.com/tess/riff/internal/spotify/auth"
-	"github.com/tess/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/config"
+	"github.com/tessro/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/client"
 )
 
 var configCmd = &cobra.Command{
@@ -151,7 +151,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 
 	// Write header comment
 	fmt.Fprintln(f, "# Riff Configuration")
-	fmt.Fprintln(f, "# https://github.com/tess/riff")
+	fmt.Fprintln(f, "# https://github.com/tessro/riff")
 	fmt.Fprintln(f, "")
 
 	// Write config
@@ -258,7 +258,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 
 	// Write header comment
 	fmt.Fprintln(f, "# Riff Configuration")
-	fmt.Fprintln(f, "# https://github.com/tess/riff")
+	fmt.Fprintln(f, "# https://github.com/tessro/riff")
 	fmt.Fprintln(f, "")
 
 	encoder := toml.NewEncoder(f)

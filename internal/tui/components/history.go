@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tess/riff/internal/core"
-	"github.com/tess/riff/internal/tui/styles"
+	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/tui/styles"
 )
 
 // HistoryEntry represents a track in play history

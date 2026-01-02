@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/core"
-	"github.com/tess/riff/internal/tail"
+	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/tail"
 )
 
 var (

@@ -16,12 +16,12 @@ A unified CLI for controlling music playback across Spotify and Sonos devices.
 ### From Source
 
 ```bash
-go install github.com/tess/riff/cmd/riff@latest
+go install github.com/tessro/riff/cmd/riff@latest
 ```
 
 ### From Releases
 
-Download the latest release from the [releases page](https://github.com/tess/riff/releases).
+Download the latest release from the [releases page](https://github.com/tessro/riff/releases).
 
 ## Quick Start
 

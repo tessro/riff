@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/tess/riff/internal/core"
+	"github.com/tessro/riff/internal/core"
 )
 
 // DIDLLite represents DIDL-Lite metadata format used by UPnP.

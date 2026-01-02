@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/tess/riff/internal/core"
-	"github.com/tess/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/spotify/client"
 )
 
 // Player implements core.Player for Spotify.

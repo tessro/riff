@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/tess/riff/internal/core"
+	"github.com/tessro/riff/internal/core"
 )
 
 // EventType represents the type of playback event.

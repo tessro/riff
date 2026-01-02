@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tess/riff/internal/core"
+	"github.com/tessro/riff/internal/core"
 )
 
 // DeviceModel is the bubbletea model for the device picker.

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/sonos"
+	"github.com/tessro/riff/internal/sonos"
 )
 
 var groupTo string

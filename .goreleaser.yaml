@@ -21,9 +21,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/tess/riff/internal/cli.Version={{.Version}}
-      - -X github.com/tess/riff/internal/cli.Commit={{.ShortCommit}}
-      - -X github.com/tess/riff/internal/cli.BuildDate={{.Date}}
+      - -X github.com/tessro/riff/internal/cli.Version={{.Version}}
+      - -X github.com/tessro/riff/internal/cli.Commit={{.ShortCommit}}
+      - -X github.com/tessro/riff/internal/cli.BuildDate={{.Date}}
 
 archives:
   - id: default
@@ -48,7 +48,7 @@ changelog:
 
 release:
   github:
-    owner: tess
+    owner: tessro
     name: riff
   draft: false
   prerelease: auto

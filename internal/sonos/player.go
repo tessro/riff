@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tess/riff/internal/core"
+	"github.com/tessro/riff/internal/core"
 )
 
 // Player implements core.Player for Sonos devices.

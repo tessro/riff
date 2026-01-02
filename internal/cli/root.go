@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/config"
+	"github.com/tessro/riff/internal/config"
 )
 
 var (

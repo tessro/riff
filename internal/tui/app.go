@@ -6,12 +6,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tess/riff/internal/core"
-	"github.com/tess/riff/internal/spotify/auth"
-	"github.com/tess/riff/internal/spotify/client"
-	"github.com/tess/riff/internal/spotify/player"
-	"github.com/tess/riff/internal/tui/components"
-	"github.com/tess/riff/internal/tui/styles"
+	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/spotify/player"
+	"github.com/tessro/riff/internal/tui/components"
+	"github.com/tessro/riff/internal/tui/styles"
 )
 
 // Panel represents which panel is focused

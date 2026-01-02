@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/browser"
-	"github.com/tess/riff/internal/spotify/auth"
-	"github.com/tess/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/browser"
+	"github.com/tessro/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/client"
 )
 
 var authCmd = &cobra.Command{

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/tui"
+	"github.com/tessro/riff/internal/tui"
 )
 
 var tuiRefresh int

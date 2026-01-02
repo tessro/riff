@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tess/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/auth"
 )
 
 const (

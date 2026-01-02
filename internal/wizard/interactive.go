@@ -3,7 +3,7 @@ package wizard
 import (
 	"os"
 
-	"github.com/tess/riff/internal/core"
+	"github.com/tessro/riff/internal/core"
 	"golang.org/x/term"
 )
 

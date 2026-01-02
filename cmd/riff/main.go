@@ -1,6 +1,6 @@
 package main
 
-import "github.com/tess/riff/internal/cli"
+import "github.com/tessro/riff/internal/cli"
 
 func main() {
 	cli.Execute()

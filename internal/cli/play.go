@@ -9,9 +9,9 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
-	"github.com/tess/riff/internal/spotify/auth"
-	"github.com/tess/riff/internal/spotify/client"
-	"github.com/tess/riff/internal/spotify/player"
+	"github.com/tessro/riff/internal/spotify/auth"
+	"github.com/tessro/riff/internal/spotify/client"
+	"github.com/tessro/riff/internal/spotify/player"
 )
 
 var (

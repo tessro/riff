@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tess/riff/internal/core"
-	"github.com/tess/riff/internal/tui/styles"
+	"github.com/tessro/riff/internal/core"
+	"github.com/tessro/riff/internal/tui/styles"
 )
 
 // Devices displays available playback devices

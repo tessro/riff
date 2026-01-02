@@ -1,4 +1,4 @@
-module github.com/tess/riff
+module github.com/tessro/riff
 
 go 1.25.5
 
