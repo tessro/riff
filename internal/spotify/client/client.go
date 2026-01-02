@@ -17,6 +17,10 @@ import (
 const (
 	// BaseURL is the Spotify Web API base URL.
 	BaseURL = "https://api.spotify.com/v1"
+
+	// Retry configuration for transient errors
+	maxRetries    = 3
+	baseRetryWait = 500 * time.Millisecond
 )
 
 // Client is a Spotify API client.
@@ -26,6 +30,8 @@ type Client struct {
 	storage    *auth.TokenStorage
 	token      *auth.Token
 	mu         sync.RWMutex
+	verbose    bool
+	logFunc    func(format string, args ...interface{})
 }
 
 // New creates a new Spotify client.
@@ -140,56 +146,90 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		return err
 	}
 
-	var bodyReader io.Reader
+	var jsonBody []byte
 	if body != nil {
-		jsonBody, err := json.Marshal(body)
+		jsonBody, err = json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("failed to marshal request body: %w", err)
 		}
-		bodyReader = strings.NewReader(string(jsonBody))
 	}
 
 	fullURL := BaseURL + path
-	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Wait before retry (skip on first attempt)
+		if attempt > 0 {
+			wait := baseRetryWait * time.Duration(1<<(attempt-1)) // exponential backoff
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+			}
+		}
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
+		var bodyReader io.Reader
+		if jsonBody != nil {
+			bodyReader = strings.NewReader(string(jsonBody))
+		}
 
-	if resp.StatusCode == http.StatusNoContent {
+		req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			continue // Retry on network error
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read response: %w", err)
+			continue
+		}
+
+		if resp.StatusCode == http.StatusNoContent {
+			return nil
+		}
+
+		// Retry on 5xx server errors
+		if resp.StatusCode >= 500 {
+			var apiErr APIError
+			if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.ErrorInfo.Message != "" {
+				lastErr = &apiErr
+			} else {
+				lastErr = fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(respBody))
+			}
+			continue // Retry
+		}
+
+		// Don't retry 4xx errors
+		if resp.StatusCode >= 400 {
+			var apiErr APIError
+			if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.ErrorInfo.Message != "" {
+				return &apiErr
+			}
+			return fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(respBody))
+		}
+
+		if result != nil && len(respBody) > 0 {
+			if err := json.Unmarshal(respBody, result); err != nil {
+				return fmt.Errorf("failed to parse response: %w", err)
+			}
+		}
+
 		return nil
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		var apiErr APIError
-		if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.ErrorInfo.Message != "" {
-			return &apiErr
-		}
-		return fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(respBody))
-	}
-
-	if result != nil && len(respBody) > 0 {
-		if err := json.Unmarshal(respBody, result); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
-		}
-	}
-
-	return nil
+	return fmt.Errorf("request failed after %d retries: %w", maxRetries, lastErr)
 }
 
 // APIError represents a Spotify API error response.
