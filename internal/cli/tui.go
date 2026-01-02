@@ -11,11 +11,12 @@ import (
 var tuiRefresh int
 
 var tuiCmd = &cobra.Command{
-	Use:   "tui",
-	Short: "Launch interactive TUI dashboard",
-	Long: `Launch the interactive terminal user interface.
+	Use:     "ui",
+	Aliases: []string{"tui"},
+	Short:   "Launch interactive dashboard",
+	Long: `Launch the interactive terminal dashboard.
 
-The TUI provides a dashboard view with:
+The dashboard provides a live view with:
   • Now Playing - current track, progress, device
   • Queue - upcoming tracks
   • Devices - available playback devices
