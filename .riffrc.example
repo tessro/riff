@@ -1,0 +1,30 @@
+# Riff Configuration
+# Copy this file to ~/.riffrc and customize
+
+# Spotify settings
+[spotify]
+# Client ID from Spotify Developer Dashboard
+client_id = ""
+# Redirect URI for OAuth (default: http://localhost:8888/callback)
+redirect_uri = "http://localhost:8888/callback"
+
+# Sonos settings
+[sonos]
+# Default room/speaker name
+default_room = ""
+# Discovery timeout in seconds
+discovery_timeout = 5
+
+# TUI settings
+[tui]
+# Color theme: "dark", "light", or "auto"
+theme = "auto"
+# Refresh interval in milliseconds
+refresh_interval = 1000
+
+# Logging
+[log]
+# Log level: "debug", "info", "warn", "error"
+level = "info"
+# Log file path (empty for stderr)
+file = ""
