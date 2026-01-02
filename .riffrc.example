@@ -15,6 +15,25 @@ default_room = ""
 # Discovery timeout in seconds
 discovery_timeout = 5
 
+# Default playback settings
+[defaults]
+# Default device for playback (used when no active device)
+# Can be device name or ID - run 'riff devices' to see available devices
+device = ""
+# Default volume (0-100)
+volume = 50
+# Default shuffle state
+shuffle = false
+# Default repeat mode: "off", "track", "context"
+repeat = "off"
+
+# Tail mode settings
+[tail]
+# Enable tail mode by default
+enabled = false
+# Polling interval in milliseconds
+interval = 1000
+
 # TUI settings
 [tui]
 # Color theme: "dark", "light", or "auto"
