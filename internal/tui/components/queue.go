@@ -83,22 +83,55 @@ func (q *Queue) renderQueue(queue *core.Queue, width, maxLines int) string {
 
 	lines := make([]string, 0, end-start+1)
 
+	// Fixed overhead: "XX. " (4) + "▶ " or "  " (2) + " — " (3) = 9 chars
+	const overhead = 9
+
 	for i := start; i < end; i++ {
 		track := tracks[i]
 
 		// Number
 		num := fmt.Sprintf("%2d.", i+1)
 
+		// Calculate available space for title + artist
+		available := width - overhead
+		titleLen := len(track.Title)
+		artistLen := len(track.Artist)
+		totalNeeded := titleLen + artistLen
+
+		var title, artist string
+		if totalNeeded <= available {
+			// Everything fits, no truncation needed
+			title = track.Title
+			artist = track.Artist
+		} else {
+			// Need to truncate - give artist at least 1/3 of space (min 10 chars)
+			minArtist := available / 3
+			if minArtist < 10 {
+				minArtist = 10
+			}
+			if minArtist > available-10 {
+				minArtist = available - 10
+			}
+
+			artistSpace := minArtist
+			if artistLen < artistSpace {
+				artistSpace = artistLen
+			}
+			titleSpace := available - artistSpace
+
+			title = truncate(track.Title, titleSpace)
+			artist = truncate(track.Artist, artistSpace)
+		}
+
 		// Highlight current track (index 0)
 		var line string
 		if i == 0 {
-			line = styles.Playing.Render(fmt.Sprintf("%s ▶ %s — %s",
-				num, truncate(track.Title, width-20), truncate(track.Artist, 15)))
+			line = styles.Playing.Render(fmt.Sprintf("%s ▶ %s — %s", num, title, artist))
 		} else {
 			line = fmt.Sprintf("%s   %s — %s",
 				styles.Dim.Render(num),
-				truncate(track.Title, width-20),
-				styles.Muted.Render(truncate(track.Artist, 15)))
+				title,
+				styles.Muted.Render(artist))
 		}
 
 		lines = append(lines, line)
