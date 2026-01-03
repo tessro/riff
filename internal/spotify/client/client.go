@@ -238,7 +238,25 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 			continue // Retry
 		}
 
-		// Don't retry 4xx errors
+		// Retry 401 with a fresh token (token may have expired during request)
+		if resp.StatusCode == http.StatusUnauthorized && attempt < maxRetries {
+			c.log("[spotify] 401 unauthorized, forcing token refresh")
+			c.mu.Lock()
+			if c.token != nil {
+				// Force token refresh by marking as expired
+				c.token.ExpiresAt = time.Time{}
+			}
+			c.mu.Unlock()
+			// Get fresh token for next attempt
+			token, err = c.getToken(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to refresh token after 401: %w", err)
+			}
+			lastErr = fmt.Errorf("401 unauthorized")
+			continue
+		}
+
+		// Don't retry other 4xx errors
 		if resp.StatusCode >= 400 {
 			var apiErr APIError
 			if err := json.Unmarshal(respBody, &apiErr); err == nil && apiErr.ErrorInfo.Message != "" {
