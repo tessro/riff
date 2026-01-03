@@ -21,8 +21,9 @@
 
       "Bash(./riff:*)",
 
-      "Bash(find:*)",
       "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
       "Bash(tree:*)",
