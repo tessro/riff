@@ -2,8 +2,10 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tessro/riff/internal/core"
@@ -23,6 +25,27 @@ const (
 	PanelDevices
 	PanelHistory
 )
+
+// SearchType represents the type of search to perform
+type SearchType int
+
+const (
+	SearchAll SearchType = iota
+	SearchTracks
+	SearchAlbums
+	SearchArtists
+	SearchPlaylists
+)
+
+// searchResult represents a search result item
+type searchResult struct {
+	URI      string
+	Title    string
+	Subtitle string
+	Type     SearchType
+}
+
+const searchDebounce = 300 * time.Millisecond
 
 // App holds the TUI application state
 type App struct {
@@ -70,9 +93,17 @@ type Model struct {
 	historyView *components.History
 
 	// Overlays
-	showHelp    bool
-	showSearch  bool
-	searchInput string
+	showHelp bool
+
+	// Search state
+	showSearch    bool
+	searchInput   textinput.Model
+	searchResults []searchResult
+	searchCursor  int
+	searchType    SearchType
+	searching     bool
+	lastQuery     string
+	searchErr     error
 
 	// Error handling
 	lastError error
@@ -83,6 +114,11 @@ type Model struct {
 
 // NewModel creates a new TUI model
 func NewModel(app *App) Model {
+	ti := textinput.New()
+	ti.Placeholder = "Search tracks, albums, artists, playlists..."
+	ti.CharLimit = 100
+	ti.Width = 50
+
 	return Model{
 		app:          app,
 		focusedPanel: PanelNowPlaying,
@@ -91,6 +127,7 @@ func NewModel(app *App) Model {
 		devicesView:  components.NewDevices(),
 		historyView:  components.NewHistory(),
 		history:      make([]components.HistoryEntry, 0),
+		searchInput:  ti,
 	}
 }
 
@@ -100,6 +137,13 @@ type stateMsg *core.PlaybackState
 type queueMsg *core.Queue
 type devicesMsg []core.Device
 type errMsg error
+
+// Search messages
+type searchDebounceMsg struct{ query string }
+type searchResultsMsg struct {
+	results []searchResult
+	err     error
+}
 
 // Commands
 func (m Model) tick() tea.Cmd {
@@ -144,6 +188,115 @@ func (m Model) fetchDevices() tea.Cmd {
 			return errMsg(err)
 		}
 		return devicesMsg(devices)
+	}
+}
+
+func (m Model) doSearch(query string) tea.Cmd {
+	searchType := m.searchType
+	return func() tea.Msg {
+		if query == "" {
+			return searchResultsMsg{results: nil}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Determine which types to search based on searchType
+		var types []client.SearchType
+		switch searchType {
+		case SearchTracks:
+			types = []client.SearchType{client.SearchTypeTrack}
+		case SearchAlbums:
+			types = []client.SearchType{client.SearchTypeAlbum}
+		case SearchArtists:
+			types = []client.SearchType{client.SearchTypeArtist}
+		case SearchPlaylists:
+			types = []client.SearchType{client.SearchTypePlaylist}
+		default:
+			types = []client.SearchType{
+				client.SearchTypeTrack,
+				client.SearchTypeAlbum,
+				client.SearchTypeArtist,
+				client.SearchTypePlaylist,
+			}
+		}
+
+		resp, err := m.app.spotifyClient.Search(ctx, client.SearchOptions{
+			Query: query,
+			Types: types,
+			Limit: 10,
+		})
+		if err != nil {
+			return searchResultsMsg{err: err}
+		}
+
+		// Convert to searchResult slice
+		var results []searchResult
+
+		if resp.Tracks != nil {
+			for _, t := range resp.Tracks.Items {
+				artists := make([]string, len(t.Artists))
+				for i, a := range t.Artists {
+					artists[i] = a.Name
+				}
+				results = append(results, searchResult{
+					URI:      t.URI,
+					Title:    t.Name,
+					Subtitle: strings.Join(artists, ", "),
+					Type:     SearchTracks,
+				})
+			}
+		}
+		if resp.Albums != nil {
+			for _, a := range resp.Albums.Items {
+				artists := make([]string, len(a.Artists))
+				for i, art := range a.Artists {
+					artists[i] = art.Name
+				}
+				results = append(results, searchResult{
+					URI:      a.URI,
+					Title:    a.Name,
+					Subtitle: strings.Join(artists, ", ") + " (Album)",
+					Type:     SearchAlbums,
+				})
+			}
+		}
+		if resp.Artists != nil {
+			for _, a := range resp.Artists.Items {
+				results = append(results, searchResult{
+					URI:      a.URI,
+					Title:    a.Name,
+					Subtitle: "(Artist)",
+					Type:     SearchArtists,
+				})
+			}
+		}
+		if resp.Playlists != nil {
+			for _, p := range resp.Playlists.Items {
+				results = append(results, searchResult{
+					URI:      p.URI,
+					Title:    p.Name,
+					Subtitle: "by " + p.Owner.DisplayName + " (Playlist)",
+					Type:     SearchPlaylists,
+				})
+			}
+		}
+
+		return searchResultsMsg{results: results}
+	}
+}
+
+func (m Model) playSearchResult(result searchResult) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		switch result.Type {
+		case SearchTracks:
+			_ = m.app.player.PlayURI(ctx, result.URI)
+		case SearchAlbums, SearchArtists, SearchPlaylists:
+			_ = m.app.player.PlayContext(ctx, result.URI, 0)
+		}
+		time.Sleep(200 * time.Millisecond)
+		return refreshAfterActionMsg{}
 	}
 }
 
@@ -201,6 +354,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case refreshAfterActionMsg:
 		return m, tea.Batch(m.fetchState(), m.fetchQueue())
+
+	case searchDebounceMsg:
+		if msg.query == m.searchInput.Value() && msg.query != m.lastQuery {
+			m.lastQuery = msg.query
+			m.searching = true
+			return m, m.doSearch(msg.query)
+		}
+
+	case searchResultsMsg:
+		m.searching = false
+		m.searchResults = msg.results
+		m.searchErr = msg.err
+		m.searchCursor = 0
+		return m, nil
+	}
+
+	// Forward other messages to textinput when search is active
+	if m.showSearch {
+		var inputCmd tea.Cmd
+		m.searchInput, inputCmd = m.searchInput.Update(msg)
+		return m, inputCmd
 	}
 
 	return m, nil
@@ -209,28 +383,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Global keys (always work)
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+	}
+
+	// Help overlay
+	if m.showHelp {
+		switch msg.String() {
+		case "?", "esc":
+			m.showHelp = false
+		}
+		return m, nil
+	}
+
+	// Search overlay
+	if m.showSearch {
+		return m.handleSearchKeyPress(msg)
+	}
+
+	// Normal mode
+	switch msg.String() {
+	case "q":
 		m.quitting = true
 		return m, tea.Quit
 
 	case "?":
-		m.showHelp = !m.showHelp
+		m.showHelp = true
 		return m, nil
 
 	case "/":
 		m.showSearch = true
-		m.searchInput = ""
-		return m, nil
+		m.searchInput.SetValue("")
+		m.searchInput.Focus()
+		m.searchResults = nil
+		m.searchCursor = 0
+		m.searchType = SearchAll
+		m.lastQuery = ""
+		m.searchErr = nil
+		return m, textinput.Blink
 
 	case "esc":
-		if m.showHelp {
-			m.showHelp = false
-			return m, nil
-		}
-		if m.showSearch {
-			m.showSearch = false
-			return m, nil
-		}
+		// Nothing to close in normal mode
+		return m, nil
 
 	case "tab":
 		m.focusedPanel = (m.focusedPanel + 1) % 4
@@ -238,11 +433,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "shift+tab":
 		m.focusedPanel = (m.focusedPanel + 3) % 4
-		return m, nil
-	}
-
-	// Overlays capture all other keys
-	if m.showHelp || m.showSearch {
 		return m, nil
 	}
 
@@ -285,6 +475,61 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg.String() {
+	case "esc":
+		m.showSearch = false
+		m.searchInput.Blur()
+		return m, nil
+
+	case "enter":
+		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
+			result := m.searchResults[m.searchCursor]
+			m.showSearch = false
+			m.searchInput.Blur()
+			return m, m.playSearchResult(result)
+		}
+		return m, nil
+
+	case "up", "ctrl+p":
+		if m.searchCursor > 0 {
+			m.searchCursor--
+		}
+		return m, nil
+
+	case "down", "ctrl+n":
+		if m.searchCursor < len(m.searchResults)-1 {
+			m.searchCursor++
+		}
+		return m, nil
+
+	case "ctrl+t":
+		// Cycle through search types
+		m.searchType = (m.searchType + 1) % 5
+		if m.searchInput.Value() != "" {
+			m.searching = true
+			return m, m.doSearch(m.searchInput.Value())
+		}
+		return m, nil
+	}
+
+	// Handle text input
+	var inputCmd tea.Cmd
+	m.searchInput, inputCmd = m.searchInput.Update(msg)
+	cmds = append(cmds, inputCmd)
+
+	// Debounce search
+	if m.searchInput.Value() != m.lastQuery {
+		cmds = append(cmds, tea.Tick(searchDebounce, func(time.Time) tea.Msg {
+			return searchDebounceMsg{query: m.searchInput.Value()}
+		}))
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) togglePlayPause() tea.Cmd {
@@ -476,16 +721,77 @@ func (m Model) renderHelp() string {
 }
 
 func (m Model) renderSearch() string {
-	search := lipgloss.NewStyle().
+	var b strings.Builder
+
+	// Title
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
+	b.WriteString(titleStyle.Render("Search"))
+	b.WriteString("\n\n")
+
+	// Search input
+	b.WriteString(m.searchInput.View())
+	b.WriteString("\n\n")
+
+	// Type filter tabs
+	tabs := []string{"All", "Tracks", "Albums", "Artists", "Playlists"}
+	activeTabStyle := lipgloss.NewStyle().Padding(0, 1).Background(lipgloss.Color("205")).Foreground(lipgloss.Color("0"))
+	tabStyle := lipgloss.NewStyle().Padding(0, 1).Foreground(lipgloss.Color("243"))
+	for i, tab := range tabs {
+		if SearchType(i) == m.searchType {
+			b.WriteString(activeTabStyle.Render(tab))
+		} else {
+			b.WriteString(tabStyle.Render(tab))
+		}
+	}
+	b.WriteString("\n\n")
+
+	// Results
+	subtitleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	selectedStyle := lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+
+	if m.searchErr != nil {
+		b.WriteString(errorStyle.Render("Error: " + m.searchErr.Error()))
+	} else if m.searching {
+		b.WriteString(subtitleStyle.Render("Searching..."))
+	} else if len(m.searchResults) == 0 && m.searchInput.Value() != "" && m.lastQuery != "" {
+		b.WriteString(subtitleStyle.Render("No results found"))
+	} else {
+		maxResults := 10
+		for i, result := range m.searchResults {
+			if i >= maxResults {
+				b.WriteString(subtitleStyle.Render("  ...and more"))
+				break
+			}
+
+			line := result.Title
+			if result.Subtitle != "" {
+				line += " " + subtitleStyle.Render(result.Subtitle)
+			}
+
+			if i == m.searchCursor {
+				b.WriteString(selectedStyle.Render("> " + line))
+			} else {
+				b.WriteString("  " + line)
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	// Help
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:navigate  Enter:play  Esc:cancel"))
+
+	content := lipgloss.NewStyle().
 		Width(60).
 		Padding(1, 2).
-		Render("Search: " + m.searchInput + "█\n\nPress Esc to cancel")
+		Render(b.String())
 
 	return lipgloss.NewStyle().
 		Width(m.width).
 		Height(m.height).
 		Align(lipgloss.Center, lipgloss.Center).
-		Render(styles.FocusedBorder.Render(search))
+		Render(styles.FocusedBorder.Render(content))
 }
 
 // Run starts the TUI application
