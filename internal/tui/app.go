@@ -113,7 +113,8 @@ type Model struct {
 	searchErr     error
 
 	// Error handling
-	lastError error
+	lastError   error
+	errorExpiry time.Time // When to clear the error
 
 	// Quit flag
 	quitting bool
@@ -342,21 +343,6 @@ func (m Model) queueSearchResult(result searchResult) tea.Cmd {
 	}
 }
 
-func (m Model) startRadioFromResult(result searchResult) tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-		// Radio is artist context with shuffle enabled
-		if result.ArtistURI == "" {
-			return nil
-		}
-		// Enable shuffle first, then play artist context
-		_ = m.app.player.Shuffle(ctx, true)
-		_ = m.app.player.PlayContext(ctx, result.ArtistURI, 0)
-		time.Sleep(200 * time.Millisecond)
-		return refreshAfterActionMsg{}
-	}
-}
-
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
@@ -383,7 +369,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.tick(), m.fetchState())
 
 	case stateMsg:
-		m.lastError = nil
+		if time.Now().After(m.errorExpiry) {
+			m.lastError = nil
+		}
 		oldTrack := ""
 		if m.state != nil && m.state.Track != nil {
 			oldTrack = m.state.Track.URI
@@ -404,17 +392,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case queueMsg:
-		m.lastError = nil
+		if time.Now().After(m.errorExpiry) {
+			m.lastError = nil
+		}
 		m.queue = msg
 		return m, nil
 
 	case devicesMsg:
-		m.lastError = nil
+		if time.Now().After(m.errorExpiry) {
+			m.lastError = nil
+		}
 		m.devices = msg
 		return m, nil
 
 	case historyMsg:
-		m.lastError = nil
+		if time.Now().After(m.errorExpiry) {
+			m.lastError = nil
+		}
 		// Convert core.HistoryEntry to components.HistoryEntry
 		entries := make([]components.HistoryEntry, len(msg))
 		for i, h := range msg {
@@ -428,6 +422,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case errMsg:
 		m.lastError = msg
+		m.errorExpiry = time.Now().Add(5 * time.Second) // Show error for 5 seconds
 		return m, nil
 
 	case defaultDeviceSetMsg:
@@ -600,7 +595,7 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "q":
+	case "ctrl+q":
 		// Add to queue (tracks only)
 		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
 			result := m.searchResults[m.searchCursor]
@@ -608,18 +603,6 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showSearch = false
 				m.searchInput.Blur()
 				return m, m.queueSearchResult(result)
-			}
-		}
-		return m, nil
-
-	case "r":
-		// Start radio (tracks, albums, artists)
-		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
-			result := m.searchResults[m.searchCursor]
-			if result.ArtistURI != "" {
-				m.showSearch = false
-				m.searchInput.Blur()
-				return m, m.startRadioFromResult(result)
 			}
 		}
 		return m, nil
@@ -959,7 +942,7 @@ func (m Model) renderSearch() string {
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:nav  Enter:play  q:queue  r:radio  Esc:cancel"))
+	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  ↑/↓:nav  Enter:play  Ctrl+q:queue  Esc:close"))
 
 	content := lipgloss.NewStyle().
 		Width(60).

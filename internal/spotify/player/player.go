@@ -44,6 +44,23 @@ func (p *Player) PlayContext(ctx context.Context, contextURI string, offset int)
 	})
 }
 
+// PlayContextNoOffset starts playback of a context without specifying a position.
+// Use this for artist contexts which don't support offset.
+func (p *Player) PlayContextNoOffset(ctx context.Context, contextURI string) error {
+	return p.client.Play(ctx, p.deviceID, &client.PlayOptions{
+		ContextURI: contextURI,
+	})
+}
+
+// PlayContextFromTrack starts playback of a context beginning at a specific track URI.
+// Useful for "radio" where you want to start with a specific song in an artist context.
+func (p *Player) PlayContextFromTrack(ctx context.Context, contextURI, trackURI string) error {
+	return p.client.Play(ctx, p.deviceID, &client.PlayOptions{
+		ContextURI: contextURI,
+		Offset:     &client.PlayOffset{URI: trackURI},
+	})
+}
+
 // Pause pauses playback.
 func (p *Player) Pause(ctx context.Context) error {
 	return p.client.Pause(ctx, p.deviceID)
