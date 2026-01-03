@@ -136,6 +136,7 @@ type tickMsg time.Time
 type stateMsg *core.PlaybackState
 type queueMsg *core.Queue
 type devicesMsg []core.Device
+type historyMsg []core.HistoryEntry
 type errMsg error
 
 // Search messages
@@ -188,6 +189,19 @@ func (m Model) fetchDevices() tea.Cmd {
 			return errMsg(err)
 		}
 		return devicesMsg(devices)
+	}
+}
+
+func (m Model) fetchHistory() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		history, err := m.app.player.GetRecentlyPlayed(ctx, 20)
+		if err != nil {
+			return errMsg(err)
+		}
+		return historyMsg(history)
 	}
 }
 
@@ -307,6 +321,7 @@ func (m Model) Init() tea.Cmd {
 		m.fetchState(),
 		m.fetchQueue(),
 		m.fetchDevices(),
+		m.fetchHistory(),
 	)
 }
 
@@ -346,6 +361,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case devicesMsg:
 		m.lastError = nil
 		m.devices = msg
+		return m, nil
+
+	case historyMsg:
+		m.lastError = nil
+		// Convert core.HistoryEntry to components.HistoryEntry
+		entries := make([]components.HistoryEntry, len(msg))
+		for i, h := range msg {
+			entries[i] = components.HistoryEntry{
+				Track:    h.Track,
+				PlayedAt: h.PlayedAt,
+			}
+		}
+		m.history = entries
 		return m, nil
 
 	case errMsg:
