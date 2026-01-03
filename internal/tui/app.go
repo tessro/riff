@@ -314,6 +314,15 @@ func (m Model) playSearchResult(result searchResult) tea.Cmd {
 	}
 }
 
+func (m Model) queueSearchResult(result searchResult) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		_ = m.app.player.AddToQueue(ctx, result.URI)
+		time.Sleep(200 * time.Millisecond)
+		return refreshAfterActionMsg{}
+	}
+}
+
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
@@ -548,6 +557,18 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searchInput.Value() != "" {
 			m.searching = true
 			return m, m.doSearch(m.searchInput.Value())
+		}
+		return m, nil
+
+	case "q":
+		// Add to queue (tracks only)
+		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
+			result := m.searchResults[m.searchCursor]
+			if result.Type == SearchTracks {
+				m.showSearch = false
+				m.searchInput.Blur()
+				return m, m.queueSearchResult(result)
+			}
 		}
 		return m, nil
 	}
@@ -815,7 +836,7 @@ func (m Model) renderSearch() string {
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:navigate  Enter:play  Esc:cancel"))
+	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:nav  Enter:play  q:queue  Esc:cancel"))
 
 	content := lipgloss.NewStyle().
 		Width(60).
