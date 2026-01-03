@@ -43,10 +43,11 @@ const (
 
 // searchResult represents a search result item
 type searchResult struct {
-	URI      string
-	Title    string
-	Subtitle string
-	Type     SearchType
+	URI       string
+	ArtistURI string // For starting radio (artist context)
+	Title     string
+	Subtitle  string
+	Type      SearchType
 }
 
 const searchDebounce = 300 * time.Millisecond
@@ -260,11 +261,16 @@ func (m Model) doSearch(query string) tea.Cmd {
 				for i, a := range t.Artists {
 					artists[i] = a.Name
 				}
+				artistURI := ""
+				if len(t.Artists) > 0 {
+					artistURI = t.Artists[0].URI
+				}
 				results = append(results, searchResult{
-					URI:      t.URI,
-					Title:    t.Name,
-					Subtitle: strings.Join(artists, ", "),
-					Type:     SearchTracks,
+					URI:       t.URI,
+					ArtistURI: artistURI,
+					Title:     t.Name,
+					Subtitle:  strings.Join(artists, ", "),
+					Type:      SearchTracks,
 				})
 			}
 		}
@@ -274,21 +280,27 @@ func (m Model) doSearch(query string) tea.Cmd {
 				for i, art := range a.Artists {
 					artists[i] = art.Name
 				}
+				artistURI := ""
+				if len(a.Artists) > 0 {
+					artistURI = a.Artists[0].URI
+				}
 				results = append(results, searchResult{
-					URI:      a.URI,
-					Title:    a.Name,
-					Subtitle: strings.Join(artists, ", ") + " (Album)",
-					Type:     SearchAlbums,
+					URI:       a.URI,
+					ArtistURI: artistURI,
+					Title:     a.Name,
+					Subtitle:  strings.Join(artists, ", ") + " (Album)",
+					Type:      SearchAlbums,
 				})
 			}
 		}
 		if resp.Artists != nil {
 			for _, a := range resp.Artists.Items {
 				results = append(results, searchResult{
-					URI:      a.URI,
-					Title:    a.Name,
-					Subtitle: "(Artist)",
-					Type:     SearchArtists,
+					URI:       a.URI,
+					ArtistURI: a.URI, // Artist's own URI for radio
+					Title:     a.Name,
+					Subtitle:  "(Artist)",
+					Type:      SearchArtists,
 				})
 			}
 		}
@@ -325,6 +337,21 @@ func (m Model) queueSearchResult(result searchResult) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		_ = m.app.player.AddToQueue(ctx, result.URI)
+		time.Sleep(200 * time.Millisecond)
+		return refreshAfterActionMsg{}
+	}
+}
+
+func (m Model) startRadioFromResult(result searchResult) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		// Radio is artist context with shuffle enabled
+		if result.ArtistURI == "" {
+			return nil
+		}
+		// Enable shuffle first, then play artist context
+		_ = m.app.player.Shuffle(ctx, true)
+		_ = m.app.player.PlayContext(ctx, result.ArtistURI, 0)
 		time.Sleep(200 * time.Millisecond)
 		return refreshAfterActionMsg{}
 	}
@@ -581,6 +608,18 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showSearch = false
 				m.searchInput.Blur()
 				return m, m.queueSearchResult(result)
+			}
+		}
+		return m, nil
+
+	case "r":
+		// Start radio (tracks, albums, artists)
+		if len(m.searchResults) > 0 && m.searchCursor < len(m.searchResults) {
+			result := m.searchResults[m.searchCursor]
+			if result.ArtistURI != "" {
+				m.showSearch = false
+				m.searchInput.Blur()
+				return m, m.startRadioFromResult(result)
 			}
 		}
 		return m, nil
@@ -920,7 +959,7 @@ func (m Model) renderSearch() string {
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:nav  Enter:play  q:queue  Esc:cancel"))
+	b.WriteString(subtitleStyle.Render("Ctrl+t:filter  Up/Down:nav  Enter:play  q:queue  r:radio  Esc:cancel"))
 
 	content := lipgloss.NewStyle().
 		Width(60).

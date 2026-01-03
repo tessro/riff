@@ -147,6 +147,11 @@ func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
 	return p.client.AddToQueue(ctx, trackURI, p.deviceID)
 }
 
+// Shuffle sets the shuffle mode.
+func (p *Player) Shuffle(ctx context.Context, state bool) error {
+	return p.client.SetShuffle(ctx, state, p.deviceID)
+}
+
 // TransferPlayback transfers playback to a different device.
 func (p *Player) TransferPlayback(ctx context.Context, deviceID string, play bool) error {
 	return p.client.TransferPlayback(ctx, deviceID, play)
