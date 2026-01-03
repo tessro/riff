@@ -2,9 +2,13 @@ package tui
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,10 +56,11 @@ type App struct {
 	spotifyClient *client.Client
 	player        *player.Player
 	refreshRate   time.Duration
+	defaultDevice string // Device name from config
 }
 
 // NewApp creates a new TUI application
-func NewApp(clientID string, refreshRate time.Duration) (*App, error) {
+func NewApp(clientID string, refreshRate time.Duration, defaultDevice string) (*App, error) {
 	storage, err := auth.NewTokenStorage("")
 	if err != nil {
 		return nil, err
@@ -70,6 +75,7 @@ func NewApp(clientID string, refreshRate time.Duration) (*App, error) {
 		spotifyClient: spotifyClient,
 		player:        player.New(spotifyClient),
 		refreshRate:   refreshRate,
+		defaultDevice: defaultDevice,
 	}, nil
 }
 
@@ -138,6 +144,7 @@ type queueMsg *core.Queue
 type devicesMsg []core.Device
 type historyMsg []core.HistoryEntry
 type errMsg error
+type defaultDeviceSetMsg string // Device name that was set as default
 
 // Search messages
 type searchDebounceMsg struct{ query string }
@@ -396,6 +403,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastError = msg
 		return m, nil
 
+	case defaultDeviceSetMsg:
+		m.app.defaultDevice = string(msg)
+		return m, nil
+
 	case refreshAfterActionMsg:
 		return m, tea.Batch(m.fetchState(), m.fetchQueue())
 
@@ -515,6 +526,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.devicesView.SelectPrev()
 		case "enter":
 			return m, m.transferToDevice()
+		case "d":
+			return m, m.setDefaultDevice()
 		}
 	}
 
@@ -657,6 +670,76 @@ func (m Model) transferToDevice() tea.Cmd {
 	}
 }
 
+func (m Model) setDefaultDevice() tea.Cmd {
+	return func() tea.Msg {
+		selected := m.devicesView.Selected()
+		if selected < 0 || selected >= len(m.devices) {
+			return nil
+		}
+		device := m.devices[selected]
+
+		// Save to config file
+		if err := saveDefaultDevice(device.Name); err != nil {
+			return errMsg(err)
+		}
+		return defaultDeviceSetMsg(device.Name)
+	}
+}
+
+// saveDefaultDevice persists the default device name to the config file
+func saveDefaultDevice(deviceName string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home dir: %w", err)
+	}
+
+	configPath := filepath.Join(home, ".riffrc")
+
+	// Read existing config
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Create minimal config with just the device
+			data = []byte{}
+		} else {
+			return fmt.Errorf("failed to read config: %w", err)
+		}
+	}
+
+	// Parse config
+	var rawConfig map[string]interface{}
+	if len(data) > 0 {
+		if _, err := toml.Decode(string(data), &rawConfig); err != nil {
+			return fmt.Errorf("failed to parse config: %w", err)
+		}
+	} else {
+		rawConfig = make(map[string]interface{})
+	}
+
+	// Get or create defaults section
+	defaults, ok := rawConfig["defaults"].(map[string]interface{})
+	if !ok {
+		defaults = make(map[string]interface{})
+		rawConfig["defaults"] = defaults
+	}
+	defaults["device"] = deviceName
+
+	// Write back
+	f, err := os.Create(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	defer f.Close()
+
+	_, _ = fmt.Fprintln(f, "# Riff Configuration")
+	_, _ = fmt.Fprintln(f, "# https://github.com/tessro/riff")
+	_, _ = fmt.Fprintln(f, "")
+
+	encoder := toml.NewEncoder(f)
+	encoder.Indent = "  "
+	return encoder.Encode(rawConfig)
+}
+
 func (m *Model) addToHistory(track *core.Track) {
 	entry := components.HistoryEntry{
 		Track:    track,
@@ -701,7 +784,7 @@ func (m Model) View() string {
 	// Render panels
 	nowPlaying := m.nowPlaying.Render(m.state, leftWidth-2, topHeight-2, m.focusedPanel == PanelNowPlaying)
 	queueView := m.queueView.Render(m.queue, leftWidth-2, bottomHeight-2, m.focusedPanel == PanelQueue)
-	devicesView := m.devicesView.Render(m.devices, rightWidth-2, topHeight-2, m.focusedPanel == PanelDevices)
+	devicesView := m.devicesView.Render(m.devices, rightWidth-2, topHeight-2, m.focusedPanel == PanelDevices, m.app.defaultDevice)
 	historyView := m.historyView.Render(m.history, rightWidth-2, bottomHeight-2, m.focusedPanel == PanelHistory)
 
 	// Compose layout
@@ -765,6 +848,7 @@ func (m Model) renderHelp() string {
   j/↓          Select next
   k/↑          Select previous
   Enter        Transfer playback
+  d            Set as default (★)
 
   Press ? or Esc to close
 `
@@ -851,8 +935,8 @@ func (m Model) renderSearch() string {
 }
 
 // Run starts the TUI application
-func Run(clientID string, refreshRate time.Duration) error {
-	app, err := NewApp(clientID, refreshRate)
+func Run(clientID string, refreshRate time.Duration, defaultDevice string) error {
+	app, err := NewApp(clientID, refreshRate, defaultDevice)
 	if err != nil {
 		return err
 	}

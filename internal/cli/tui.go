@@ -45,5 +45,5 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	refreshRate := time.Duration(tuiRefresh) * time.Millisecond
-	return tui.Run(cfg.Spotify.ClientID, refreshRate)
+	return tui.Run(cfg.Spotify.ClientID, refreshRate, cfg.Defaults.Device)
 }

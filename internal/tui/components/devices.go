@@ -36,14 +36,14 @@ func (d *Devices) Selected() int {
 }
 
 // Render renders the devices panel
-func (d *Devices) Render(devices []core.Device, width, height int, focused bool) string {
+func (d *Devices) Render(devices []core.Device, width, height int, focused bool, defaultDevice string) string {
 	title := styles.PanelTitle("Devices", focused)
 
 	var content string
 	if len(devices) == 0 {
 		content = styles.Muted.Render("No devices found")
 	} else {
-		content = d.renderDevices(devices, width-4, height-4, focused)
+		content = d.renderDevices(devices, width-4, height-4, focused, defaultDevice)
 	}
 
 	panel := styles.Panel("", focused).
@@ -57,7 +57,7 @@ func (d *Devices) Render(devices []core.Device, width, height int, focused bool)
 	))
 }
 
-func (d *Devices) renderDevices(devices []core.Device, width, maxLines int, focused bool) string {
+func (d *Devices) renderDevices(devices []core.Device, width, maxLines int, focused bool, defaultDevice string) string {
 	// Adjust selected if out of bounds
 	if d.selected >= len(devices) {
 		d.selected = len(devices) - 1
@@ -83,13 +83,19 @@ func (d *Devices) renderDevices(devices []core.Device, width, maxLines int, focu
 			active = styles.Playing.Render(" ●")
 		}
 
+		// Default indicator
+		defaultIndicator := ""
+		if device.Name == defaultDevice {
+			defaultIndicator = lipgloss.NewStyle().Foreground(styles.Accent).Render(" ★")
+		}
+
 		// Device name
 		name := device.Name
 		if i == d.selected && focused {
 			name = styles.Highlight.Render(name)
 		}
 
-		line := fmt.Sprintf("%s%s %s%s", selector, icon, name, active)
+		line := fmt.Sprintf("%s%s %s%s%s", selector, icon, name, active, defaultIndicator)
 		lines = append(lines, line)
 
 		// Limit lines
