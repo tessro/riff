@@ -190,3 +190,21 @@ type Queue struct {
 	CurrentlyPlaying *Track  `json:"currently_playing"`
 	Queue            []Track `json:"queue"`
 }
+
+// RecentlyPlayedResponse represents the response from the recently played endpoint.
+type RecentlyPlayedResponse struct {
+	Items   []PlayHistory `json:"items"`
+	Next    string        `json:"next"`
+	Cursors struct {
+		After  string `json:"after"`
+		Before string `json:"before"`
+	} `json:"cursors"`
+	Limit int `json:"limit"`
+}
+
+// PlayHistory represents a recently played track entry.
+type PlayHistory struct {
+	Track    Track  `json:"track"`
+	PlayedAt string `json:"played_at"`
+	Context  *Context `json:"context"`
+}

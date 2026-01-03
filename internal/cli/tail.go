@@ -67,9 +67,6 @@ func runTail(cmd *cobra.Command, args []string) error {
 		tail.WithTemplate(tailFormat),
 	)
 
-	// Create watcher
-	watcher := tail.NewWatcher(player, tailInterval)
-
 	// Handle Ctrl+C gracefully
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
@@ -81,6 +78,12 @@ func runTail(cmd *cobra.Command, args []string) error {
 		<-sigCh
 		cancel()
 	}()
+
+	// Show recently played tracks and current song on startup
+	showInitialState(ctx, player, formatter)
+
+	// Create watcher
+	watcher := tail.NewWatcher(player, tailInterval)
 
 	// Start watching in background
 	errCh := make(chan error, 1)
@@ -103,6 +106,39 @@ func runTail(cmd *cobra.Command, args []string) error {
 			}
 			return err
 		}
+	}
+}
+
+// showInitialState displays recently played tracks and current song on startup.
+func showInitialState(ctx context.Context, p core.Player, formatter *tail.Formatter) {
+	// Get recently played tracks (show last 5)
+	history, err := p.GetRecentlyPlayed(ctx, 5)
+	if err == nil && len(history) > 0 {
+		// Print in reverse order (oldest first) so newest is at bottom
+		for i := len(history) - 1; i >= 0; i-- {
+			entry := history[i]
+			if entry.Track != nil {
+				timestamp := ""
+				if tailTimestamp {
+					timestamp = entry.PlayedAt.Local().Format("15:04:05") + " "
+				}
+				emoji := ""
+				if !tailNoEmoji {
+					emoji = "⏪ "
+				}
+				fmt.Printf("%s%s%s — %s\n", timestamp, emoji, entry.Track.Artist, entry.Track.Title)
+			}
+		}
+	}
+
+	// Get current state
+	state, err := p.GetState(ctx)
+	if err == nil && state != nil && state.Track != nil {
+		event := tail.Event{
+			Type:    tail.EventTrackChange,
+			Current: state,
+		}
+		fmt.Println(formatter.Format(event))
 	}
 }
 

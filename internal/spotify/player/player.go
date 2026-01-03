@@ -124,6 +124,24 @@ func (p *Player) GetQueue(ctx context.Context) (*core.Queue, error) {
 	return coreQueue, nil
 }
 
+// GetRecentlyPlayed returns the user's recently played tracks.
+func (p *Player) GetRecentlyPlayed(ctx context.Context, limit int) ([]core.HistoryEntry, error) {
+	resp, err := p.client.GetRecentlyPlayed(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]core.HistoryEntry, len(resp.Items))
+	for i, item := range resp.Items {
+		playedAt, _ := time.Parse(time.RFC3339, item.PlayedAt)
+		entries[i] = core.HistoryEntry{
+			Track:    convertTrack(&item.Track),
+			PlayedAt: playedAt,
+		}
+	}
+	return entries, nil
+}
+
 // AddToQueue adds a track to the playback queue.
 func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
 	return p.client.AddToQueue(ctx, trackURI, p.deviceID)

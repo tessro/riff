@@ -88,3 +88,17 @@ func (c *Client) Search(ctx context.Context, opts SearchOptions) (*SearchRespons
 	}
 	return &resp, nil
 }
+
+// GetRecentlyPlayed returns the user's recently played tracks.
+func (c *Client) GetRecentlyPlayed(ctx context.Context, limit int) (*RecentlyPlayedResponse, error) {
+	params := make(map[string]string)
+	if limit > 0 {
+		params["limit"] = strconv.Itoa(limit)
+	}
+
+	var resp RecentlyPlayedResponse
+	if err := c.Get(ctx, BuildURL("/me/player/recently-played", params), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

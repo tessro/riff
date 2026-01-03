@@ -135,6 +135,12 @@ func (p *Player) GetQueue(ctx context.Context) (*core.Queue, error) {
 	return &core.Queue{}, nil
 }
 
+// GetRecentlyPlayed returns recently played tracks.
+// Sonos doesn't have a recently played API, so this returns empty.
+func (p *Player) GetRecentlyPlayed(ctx context.Context, limit int) ([]core.HistoryEntry, error) {
+	return nil, nil
+}
+
 // AddToQueue adds a track to the queue.
 func (p *Player) AddToQueue(ctx context.Context, trackURI string) error {
 	return p.client.AddURIToQueue(ctx, p.device, trackURI, "")

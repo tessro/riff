@@ -1,6 +1,9 @@
 package core
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Player defines the interface for music playback control.
 type Player interface {
@@ -17,7 +20,14 @@ type Player interface {
 	// State queries
 	GetState(ctx context.Context) (*PlaybackState, error)
 	GetQueue(ctx context.Context) (*Queue, error)
+	GetRecentlyPlayed(ctx context.Context, limit int) ([]HistoryEntry, error)
 
 	// Queue manipulation
 	AddToQueue(ctx context.Context, trackURI string) error
+}
+
+// HistoryEntry represents a recently played track.
+type HistoryEntry struct {
+	Track    *Track
+	PlayedAt time.Time
 }
