@@ -347,9 +347,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.state = msg
 
-		// Track history on track change
-		if m.state != nil && m.state.Track != nil && m.state.Track.URI != oldTrack {
-			m.addToHistory(m.state.Track)
+		// On track change, update history and refresh queue
+		newTrack := ""
+		if m.state != nil && m.state.Track != nil {
+			newTrack = m.state.Track.URI
+		}
+		if newTrack != oldTrack {
+			if m.state != nil && m.state.Track != nil {
+				m.addToHistory(m.state.Track)
+			}
+			return m, m.fetchQueue()
 		}
 		return m, nil
 
